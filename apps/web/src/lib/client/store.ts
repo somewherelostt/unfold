@@ -41,6 +41,7 @@ export type State = {
   };
   run: Run;
   plans: Record<string, PlanEntry>;
+  analyses: Record<string, MediaAnalysis>; // by videoId (timeline thumbnails on cold loads)
   library: Library;
 };
 
@@ -49,6 +50,7 @@ const initial: State = {
   project: { videoId: null, fileName: null, analysis: null, prompt: "", style: null, referenceUrl: "", analyzing: false, analyzeError: null },
   run: { status: "idle", startedAt: 0, slots: [], slotErrors: [] },
   plans: {},
+  analyses: {},
   library: sampleLibrary,
 };
 
@@ -69,7 +71,7 @@ function ensureLoaded() {
       saved.project.analyzing = false;
       // Blob URLs don't survive reloads.
       if (saved.project.analysis?.src.startsWith("blob:")) saved.project = { ...saved.project, analysis: null, videoId: null, fileName: null };
-      state = { ...initial, ...saved, library: saved.library ?? sampleLibrary };
+      state = { ...initial, ...saved, analyses: saved.analyses ?? {}, library: saved.library ?? sampleLibrary };
     }
   } catch {}
 }
@@ -277,9 +279,17 @@ export const actions = {
   },
 
   async ensurePlan(id: string) {
-    if (state.plans[id]) return;
-    const { editPlan } = await api.getPlan(id);
-    set((s) => ({ ...s, plans: { ...s.plans, [id]: newEntry(editPlan) } }));
+    if (!state.plans[id]) {
+      const { editPlan } = await api.getPlan(id);
+      set((s) => ({ ...s, plans: { ...s.plans, [id]: newEntry(editPlan) } }));
+    }
+    const videoId = state.plans[id]?.base.source.videoId;
+    if (videoId && !state.analyses[videoId] && state.project.analysis?.videoId !== videoId) {
+      try {
+        const analysis = await api.analyze(videoId); // cached server-side
+        set((s) => ({ ...s, analyses: { ...s.analyses, [videoId]: analysis } }));
+      } catch {}
+    }
   },
 
   rename(id: string, name: string) {

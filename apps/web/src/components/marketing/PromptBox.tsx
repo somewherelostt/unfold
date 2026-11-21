@@ -25,26 +25,27 @@ export function PromptBox() {
         e.preventDefault();
         go();
       }}
-      className="w-full rounded-[20px] border border-border bg-surface p-2 shadow-[0_1px_2px_rgb(0_0_0/.04),0_20px_50px_-20px_rgb(0_0_0/.18)]"
+      className="w-full rounded-2xl bg-surface p-2 text-left"
+      style={{ boxShadow: "inset 0 0 0 .5px var(--mk-line-strong), 0 1px 2px rgb(0 0 0 / .04), 0 24px 48px -24px rgb(0 0 0 / .22)" }}
     >
       <label htmlFor="mk-prompt" className="sr-only">What should this clip become?</label>
       <textarea
         id="mk-prompt"
         rows={2}
         placeholder="What should this clip become? e.g. fast montage, meme sounds on every kill"
-        className="block w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-muted"
+        className="block w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-[var(--mk-t4)] focus-visible:shadow-none"
       />
 
       {showLink && (
-        <div className="mx-1 mt-2 flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2">
-          <IconLink size={15} className="shrink-0 text-violet" />
+        <div className="mk-pop-in mk-hair mx-1 mt-2 flex items-center gap-2 rounded-lg px-3 py-2">
+          <IconLink size={15} className="mk-t3 shrink-0" />
           <label htmlFor="mk-ref" className="sr-only">Inspiration video link</label>
           <input
             id="mk-ref"
             type="url"
             autoFocus
             placeholder="Paste a short-form video link to copy its style"
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-muted"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-[var(--mk-t4)] focus-visible:shadow-none"
           />
         </div>
       )}
@@ -58,8 +59,8 @@ export function PromptBox() {
               type="button"
               aria-pressed={on}
               onClick={() => setPreset(on ? null : p.id)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors duration-[120ms] ${
-                on ? "bg-ink text-bg" : "bg-surface-2 text-ink hover:bg-border"
+              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] ${
+                on ? "bg-ink font-medium text-bg" : "mk-hair mk-hover mk-t2 hover:text-ink"
               }`}
             >
               <span className="size-2 rounded-full" style={{ background: p.swatch }} />
@@ -69,12 +70,12 @@ export function PromptBox() {
         })}
       </div>
 
-      <div className="mt-1 flex items-center justify-between gap-2 border-t border-border px-1 pt-2">
+      <div className="mk-hair-top mt-2 flex items-center justify-between gap-2 px-1 pt-2">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={go}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            className="mk-t3 inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-[var(--mk-tint-hover)] hover:text-ink"
           >
             <IconUpload size={16} />
             <span className="hidden sm:inline">Upload clip</span>
@@ -83,8 +84,8 @@ export function PromptBox() {
             type="button"
             onClick={() => setShowLink((s) => !s)}
             aria-expanded={showLink}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-2 hover:text-ink ${
-              showLink ? "text-violet" : "text-ink-muted"
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-[var(--mk-tint-hover)] hover:text-ink ${
+              showLink ? "text-ink" : "mk-t3"
             }`}
           >
             <IconLink size={16} />
@@ -94,7 +95,7 @@ export function PromptBox() {
         </div>
         <button
           type="submit"
-          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-flare px-4 text-[14px] font-semibold text-flare-ink transition-transform duration-[120ms] hover:brightness-105 active:scale-[.98]"
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-flare px-3.5 text-[14px] font-medium text-flare-ink transition-[filter] duration-150 hover:brightness-110"
         >
           Unfold a clip
           <IconSend size={16} />

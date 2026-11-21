@@ -47,75 +47,73 @@ export function StyleModal({
       ref={dialog}
       onClose={onClose}
       onClick={(e) => e.target === dialog.current && onClose()}
-      className="m-auto w-[min(920px,calc(100vw-24px))] max-h-[calc(100dvh-24px)] overflow-y-auto rounded-xl border border-border bg-surface p-0 text-ink shadow-float backdrop:bg-black/40 backdrop:backdrop-blur-[2px]"
+      className="uf-dialog layer-1 float m-auto max-h-[calc(100dvh-24px)] w-[min(880px,calc(100vw-24px))] overflow-y-auto rounded-[16px] p-0 text-[var(--fg-1)]"
     >
-      <div className="p-5 sm:p-7">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-display text-[28px] font-bold leading-[32px] tracking-[-0.015em] sm:text-[32px] sm:leading-[38px]">Pick a style</h2>
-            <p className="mt-1 text-[15px] text-ink-muted">Unfold makes nine edits in this direction. You can remix any of them after.</p>
+            <h2 className="t-h1">Pick a style</h2>
+            <p className="t-body fg-2 mt-1">Unfold makes nine edits in this direction. You can remix any of them after.</p>
           </div>
-          <button onClick={onClose} className="rounded-md p-2 text-ink-muted hover:bg-surface-2 hover:text-ink" aria-label="Close">
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <Icon name="close" />
-          </button>
+          </Button>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 md:grid-cols-4">
           {PRESETS.map((p) => {
             const m = STYLE_META[p];
             const cap = SAMPLE_CAPTION[p];
+            const sel = selectedPreset === p;
             return (
               <button
                 key={p}
                 onClick={() => onPick({ kind: "preset", preset: p })}
                 className={cx(
-                  "group rounded-lg border bg-surface p-2 text-left transition-[border-color,transform] duration-[120ms] hover:-translate-y-0.5 hover:border-ink",
-                  selectedPreset === p ? "border-flare ring-2 ring-flare/30" : "border-border",
+                  "tint group rounded-[12px] p-1.5 text-left",
+                  sel ? "bg-[var(--flare-10)] shadow-[inset_0_0_0_1px_var(--flare)]" : "hair hair-hover",
                 )}
               >
-                <div
-                  className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-md"
-                  style={{ background: `linear-gradient(160deg, ${m.swatch[1]} 0%, #222 100%)` }}
-                >
+                <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[8px] bg-black">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/demo/frame-12.jpg" alt="" className="absolute inset-0 size-full object-cover opacity-60 transition-transform duration-[240ms] group-hover:scale-105" />
+                  <img src="/demo/frame-12.jpg" alt="" className="absolute inset-0 size-full object-cover opacity-60 transition-transform duration-[var(--dur-3)] ease-out group-hover:scale-105" />
                   <span
-                    className="relative px-2 text-center text-[18px] font-black leading-tight text-white"
-                    style={{ fontFamily: cap.font, WebkitTextStroke: "4px #000", paintOrder: "stroke fill", color: cap.hi }}
+                    className="relative px-2 text-center text-[18px] leading-tight"
+                    style={{ fontFamily: cap.font, fontWeight: 900, WebkitTextStroke: "4px #000", paintOrder: "stroke fill", color: cap.hi }}
                   >
                     {cap.text}
                   </span>
                 </div>
-                <div className="mt-2.5 flex gap-1">
+                <div className="mt-2 flex gap-0.5 px-0.5">
                   {m.swatch.map((c) => (
-                    <span key={c} className="h-2 flex-1 rounded-full border border-border" style={{ background: c }} />
+                    <span key={c} className="h-1.5 flex-1 rounded-full shadow-[inset_0_0_0_0.5px_rgb(0_0_0/.15)]" style={{ background: c }} />
                   ))}
                 </div>
-                <div className="mt-2 px-0.5 text-[15px] font-semibold">{m.label}</div>
-                <div className="px-0.5 pb-1 text-[13px] text-ink-muted">{m.blurb}</div>
+                <div className={cx("t-h3 mt-2 px-0.5", sel && "text-flare")}>{m.label}</div>
+                <div className="t-meta fg-3 px-0.5 pb-1">{m.blurb}</div>
               </button>
             );
           })}
         </div>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               if (link.trim()) onPick({ kind: "link", url: link.trim() });
             }}
-            className={cx("rounded-lg border p-4", initial?.kind === "link" ? "border-flare" : "border-border")}
+            className={cx("rounded-[12px] p-4", initial?.kind === "link" ? "bg-[var(--flare-10)] shadow-[inset_0_0_0_1px_var(--flare)]" : "hair")}
           >
-            <div className="flex items-center gap-2 text-[15px] font-semibold">
-              <Icon name="link" className="text-violet" /> Copy from link
+            <div className="t-h3 flex items-center gap-2">
+              <Icon name="link" className="text-[var(--fg-3)]" /> Copy from link
             </div>
-            <p className="mt-1 text-[13px] text-ink-muted">Unfold watches the video and copies its cut rate, captions, zooms and sound.</p>
+            <p className="t-body fg-3 mt-1">Unfold watches the video and copies its cut rate, captions, zooms and sound.</p>
             <div className="mt-3 flex gap-2">
               <input
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
                 placeholder="Link to a short-form video"
-                className="h-10 min-w-0 flex-1 rounded-sm border border-border bg-surface-2 px-3 text-[14px] outline-none placeholder:text-ink-muted focus:border-flare"
+                className="layer-2 t-body h-9 min-w-0 flex-1 rounded-[8px] px-3 outline-none placeholder:text-[var(--fg-4)]"
               />
               <Button type="submit" disabled={!link.trim()}>
                 Copy style
@@ -125,18 +123,18 @@ export function StyleModal({
           <button
             onClick={() => onPick({ kind: "auto" })}
             className={cx(
-              "flex flex-col justify-between rounded-lg border p-4 text-left transition-colors duration-[120ms] hover:border-ink",
-              initial?.kind === "auto" ? "border-flare" : "border-border",
+              "tint flex flex-col justify-between rounded-[12px] p-4 text-left",
+              initial?.kind === "auto" ? "bg-[var(--flare-10)] shadow-[inset_0_0_0_1px_var(--flare)]" : "hair hair-hover",
             )}
           >
             <div>
-              <div className="flex items-center gap-2 text-[15px] font-semibold">
+              <div className="t-h3 flex items-center gap-2">
                 <Icon name="sparkle" className="text-violet" /> Let Unfold decide
               </div>
-              <p className="mt-1 text-[13px] text-ink-muted">The agent reads your clip and spreads nine edits across every style.</p>
+              <p className="t-body fg-3 mt-1">The agent reads your clip and spreads nine edits across every style.</p>
             </div>
-            <span className="mt-3 inline-flex items-center gap-1 text-[14px] font-medium text-flare">
-              Unfold 9 edits <Icon name="arrow" className="size-4" />
+            <span className="t-label mt-3 inline-flex items-center gap-1 text-flare">
+              Unfold 9 edits <Icon name="arrow" />
             </span>
           </button>
         </div>

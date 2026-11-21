@@ -14,20 +14,20 @@ export const fmtTime = (s: number) => {
 
 export function Logo({ href = "/app", wordmark = true }: { href?: string; wordmark?: boolean }) {
   return (
-    <Link href={href} className="flex items-center gap-2 text-ink" aria-label="Unfold home">
+    <Link href={href} className="chrome flex items-center gap-2 text-ink" aria-label="Unfold home">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-mark.svg" alt="" width={28} height={25} />
-      {wordmark && <span className="font-display text-[22px] font-extrabold tracking-[-0.03em]">unfold</span>}
+      <img src="/logo-mark.svg" alt="" width={24} height={21} />
+      {wordmark && <span className="font-display text-[19px] font-extrabold tracking-[-0.03em]">unfold</span>}
     </Link>
   );
 }
 
-/** ⚡ planned in 0.8s · 1,100 tok/s */
+/** ⚡ 0.8s · 1,100 tok/s — the agent's speed, always mono + tabular. */
 export function SpeedBadge({ ms, tps, label = "planned in", className }: { ms: number; tps: number; label?: string; className?: string }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-violet/10 px-2.5 py-1 font-mono text-[12px] font-medium text-violet tabular",
+        "t-mono inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--violet-12)] px-2.5 text-[11px] leading-4 text-violet",
         className,
       )}
     >
@@ -38,19 +38,20 @@ export function SpeedBadge({ ms, tps, label = "planned in", className }: { ms: n
   );
 }
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "md" | "lg" };
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "md" | "lg" | "icon" };
 export function Button({ variant = "secondary", size = "md", className, ...p }: BtnProps) {
   return (
     <button
       {...p}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-[background,color,opacity,transform] duration-[120ms] ease-out active:scale-[.98] disabled:pointer-events-none disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flare",
-        size === "sm" && "h-8 px-3 text-[13px]",
-        size === "md" && "h-10 px-4 text-[14px]",
-        size === "lg" && "h-12 px-5 text-[15px]",
-        variant === "primary" && "bg-flare text-flare-ink hover:brightness-105",
-        variant === "secondary" && "border border-border bg-surface text-ink hover:bg-surface-2",
-        variant === "ghost" && "text-ink-muted hover:bg-surface-2 hover:text-ink",
+        "tint inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] text-[13px] font-medium leading-5 transition-opacity duration-[var(--dur-1)] disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0",
+        size === "sm" && "h-8 px-2.5",
+        size === "md" && "h-9 px-3",
+        size === "lg" && "h-10 px-4",
+        size === "icon" && "size-8",
+        variant === "primary" && "bg-flare text-flare-ink",
+        variant === "secondary" && "hair hair-hover layer-1 fg-1",
+        variant === "ghost" && "fg-2 hover:text-[var(--fg-1)]",
         className,
       )}
     />
@@ -64,8 +65,8 @@ export function Chip({ selected, children, className, ...p }: ButtonHTMLAttribut
       aria-pressed={selected}
       {...p}
       className={cx(
-        "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-sm px-3 text-[13px] transition-colors duration-[120ms]",
-        selected ? "bg-ink text-bg" : "bg-surface-2 text-ink hover:bg-border",
+        "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-[12px] font-medium leading-4",
+        selected ? "bg-[var(--flare-10)] text-flare shadow-[inset_0_0_0_0.5px_var(--flare-30)]" : "tint layer-2 fg-2 hover:text-[var(--fg-1)]",
         className,
       )}
     >
@@ -82,15 +83,20 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={cx("relative h-5 w-9 shrink-0 rounded-full transition-colors duration-[120ms]", checked ? "bg-flare" : "bg-border")}
+      className={cx("relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--dur-1)]", checked ? "bg-flare" : "bg-[var(--hair-strong)]")}
     >
-      <span className={cx("absolute left-0 top-0.5 size-4 rounded-full bg-white shadow transition-transform duration-[120ms]", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
+      <span
+        className={cx(
+          "absolute left-0 top-[2px] size-[14px] rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/.2)] transition-transform duration-[var(--dur-2)] [transition-timing-function:var(--ease-spring)]",
+          checked ? "translate-x-[16px]" : "translate-x-[2px]",
+        )}
+      />
     </button>
   );
 }
 
 export function MicroLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("text-[11px] font-medium uppercase leading-4 tracking-[0.02em] text-ink-muted", className)}>{children}</div>;
+  return <div className={cx("t-meta fg-3 uppercase tracking-[0.04em]", className)}>{children}</div>;
 }
 
 const SFX_EMOJI: [RegExp, string][] = [
@@ -125,7 +131,7 @@ export const STYLE_META = {
 /** Simple 20px stroke icons. */
 export function Icon({ name, className }: { name: IconName; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
       {ICONS[name]}
     </svg>
   );

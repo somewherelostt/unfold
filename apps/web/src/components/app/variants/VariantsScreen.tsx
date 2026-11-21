@@ -4,7 +4,7 @@ import { sampleAnalysis } from "@unfold/core";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { actions, useStore, type State } from "@/lib/client/store";
-import { AppHeader } from "../AppHeader";
+import { AppHeader, HeaderLink } from "../AppHeader";
 import { PlanPlayer } from "../preview/PlanPlayer";
 import { Timeline } from "../timeline/Timeline";
 import { Button, Icon, SpeedBadge, cx, fmtNum, sfxEmoji } from "../ui";
@@ -59,8 +59,8 @@ function Variants() {
     return (
       <Shell>
         <div className="mx-auto flex max-w-sm flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-          <h1 className="font-display text-[32px] font-bold leading-[38px] tracking-[-0.015em]">No edits yet</h1>
-          <p className="text-[15px] text-ink-muted">Drop in a clip and Unfold writes nine edits of it.</p>
+          <h1 className="t-h1">No edits yet</h1>
+          <p className="t-body fg-2">Drop in a clip and Unfold writes nine edits of it.</p>
           <Link href="/app">
             <Button variant="primary">Unfold a clip</Button>
           </Link>
@@ -73,8 +73,8 @@ function Variants() {
     return (
       <Shell>
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-          <h1 className="font-display text-[32px] font-bold leading-[38px]">That run failed</h1>
-          <p className="break-words font-mono text-[12px] text-danger">{run.error}</p>
+          <h1 className="t-h1">That run failed</h1>
+          <p className="t-mono t-meta break-words text-danger">{run.error}</p>
           <Button variant="primary" onClick={() => void actions.generate(9)}>
             Try again
           </Button>
@@ -90,15 +90,15 @@ function Variants() {
       <main className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6 sm:pt-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="font-mono text-[13px] text-flare tabular">
+            <div className="t-mono t-meta fg-3">
               {stats.count} edits · {fmtNum(stats.tokens)} tokens
-              {stats.queueMs > 1000 && <span className="text-ink-muted"> · {(stats.queueMs / 1000).toFixed(0)}s queued at Cerebras</span>}
+              {stats.queueMs > 1000 && <> · {(stats.queueMs / 1000).toFixed(0)}s queued at Cerebras</>}
             </div>
-            <h1 className="mt-1 font-display text-[32px] font-bold leading-[38px] tracking-[-0.015em] sm:text-[40px] sm:leading-[44px]">Pick an edit to keep working on</h1>
-            <p className="mt-1 text-[15px] text-ink-muted">
+            <h1 className="t-h1 mt-1.5 text-balance">Pick an edit to keep working on</h1>
+            <p className="t-body fg-2 mt-1 max-w-xl text-balance">
               {project.prompt ? `“${project.prompt}”` : "Hover to preview, click to edit. Each one is a different hook, cut, track and caption style."}
             </p>
-            {run.warning && <p className="mt-1 text-[13px] text-danger">{run.warning}</p>}
+            {run.warning && <p className="t-meta mt-1 text-danger">{run.warning}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {stats.tpsAvg > 0 && <SpeedBadge ms={stats.genMs} tps={stats.tpsAvg} label={`all ${stats.count} in`} />}
@@ -113,12 +113,12 @@ function Variants() {
             id && plans[id] ? (
               <VariantCard key={id} plan={plans[id].base} stats={plans[id].stats} index={i} frames={frames} />
             ) : run.slotErrors[i] ? (
-              <div key={`e${i}`} title={run.slotErrors[i] ?? ""} className="flex aspect-[9/16] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border p-4 text-center">
-                <span className="text-[14px] font-medium">Edit {i + 1} didn&apos;t land</span>
-                <span className="line-clamp-3 text-[12px] text-ink-muted">{run.slotErrors[i]}</span>
+              <div key={`e${i}`} title={run.slotErrors[i] ?? ""} className="hair layer-1 flex aspect-[9/16] flex-col items-center justify-center gap-1 rounded-[16px] p-4 text-center">
+                <span className="t-label">Edit {i + 1} didn&apos;t land</span>
+                <span className="t-meta fg-3 line-clamp-3">{run.slotErrors[i]}</span>
               </div>
             ) : (
-              <div key={`s${i}`} className="aspect-[9/16] animate-pulse rounded-xl bg-surface-2" />
+              <div key={`s${i}`} className="layer-2 aspect-[9/16] animate-pulse rounded-[16px]" />
             ),
           )}
         </UnfoldGrid>
@@ -131,9 +131,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <AppHeader>
-        <Link href="/app" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] text-ink-muted hover:bg-surface-2 hover:text-ink">
-          <Icon name="upload" className="size-4" /> New clip
-        </Link>
+        <HeaderLink href="/app" icon="upload">
+          New clip
+        </HeaderLink>
       </AppHeader>
       {children}
     </div>
@@ -163,7 +163,7 @@ function UnfoldGrid({ children }: { children: React.ReactNode }) {
     });
   }, []);
   return (
-    <div ref={grid} className="relative mx-auto mt-8 grid max-w-[880px] grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-5 md:grid-cols-3 lg:gap-x-8">
+    <div ref={grid} className="relative mx-auto mt-8 grid max-w-[880px] grid-cols-2 gap-x-3 gap-y-7 sm:gap-x-5 md:grid-cols-3 lg:gap-x-7">
       {children}
     </div>
   );
@@ -196,86 +196,130 @@ function decisions(plan: EditPlan): { track: number; text: string }[] {
   ];
 }
 
+/** Count up to `target` over ~700ms whenever it changes (speed numbers). */
+function useCountUp(target: number, ms = 700) {
+  const [v, setV] = useState(0);
+  const from = useRef(0);
+  useEffect(() => {
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / ms);
+      const e = 1 - Math.pow(1 - p, 3);
+      const x = a + (target - a) * e;
+      setV(x);
+      from.current = x;
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
 function GeneratingView({ plan, reveal, run, plans }: { plan?: EditPlan; reveal: number; run: State["run"]; plans: State["plans"] }) {
   const { slots, slotErrors, status } = run;
-  const elapsed = useElapsed(run.startedAt, run.doneAt);
   const queued = useElapsed(run.queuedAt ?? run.startedAt, run.firstAt ?? run.doneAt);
   const ready = slots.filter(Boolean).length;
   const failed = slotErrors.filter(Boolean).length;
-  const firstStats = slots.map((id) => (id ? plans[id]?.stats : undefined)).find(Boolean);
-  const title =
-    status === "preparing" ? `${run.phase ?? "Getting ready"}…` : status === "queued" ? "Queued at Cerebras…" : run.doneAt ? "Edits ready" : "Writing your edits";
+  const landed = slots.flatMap((id) => (id && plans[id]?.stats ? [plans[id].stats!] : []));
+  const tpsTarget = landed.length ? landed.reduce((a, s) => a + s.tps, 0) / landed.length : 0;
+  const genTarget = landed.reduce((a, s) => Math.max(a, s.genMs), 0) / 1000;
+  const tps = useCountUp(tpsTarget);
+  const gen = useCountUp(genTarget);
+  const tokens = useCountUp(landed.reduce((a, s) => a + s.outputTokens, 0));
+  const live = landed.length > 0;
+  const statusText =
+    status === "preparing" ? `${run.phase ?? "Getting ready"}…` : status === "queued" ? "Queued at Cerebras…" : run.doneAt ? "Edits ready" : "Planning…";
   return (
     <Shell>
-      <main className="mx-auto grid w-full max-w-6xl flex-1 gap-6 px-4 pb-16 pt-8 sm:px-6 md:grid-cols-[minmax(0,300px)_1fr] md:gap-10 md:pt-12">
-        <div className="mx-auto w-full max-w-[300px]">
-          <div className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-black">
-            {plan ? (
-              <PlanPlayer plan={plan} muted autoPlay loop />
-            ) : (
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-surface-2 to-border" />
-            )}
+      <main className="mx-auto grid w-full max-w-6xl flex-1 gap-8 px-4 pb-16 pt-8 sm:px-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-12 md:pt-14">
+        <div className="mx-auto w-full max-w-[280px]">
+          <div className="hair relative aspect-[9/16] overflow-hidden rounded-[20px] bg-black">
+            {plan ? <PlanPlayer plan={plan} muted autoPlay loop /> : <div className="layer-2 absolute inset-0 animate-pulse" />}
           </div>
         </div>
 
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="relative flex size-2.5">
-              <span className={cx("absolute inline-flex size-full animate-ping rounded-full opacity-60", status === "queued" ? "bg-flare" : "bg-violet")} />
-              <span className={cx("relative inline-flex size-2.5 rounded-full", status === "queued" ? "bg-flare" : "bg-violet")} />
-            </span>
-            <h1 className="font-display text-[28px] font-bold leading-[32px] tracking-[-0.015em]">{title}</h1>
-            <span className="font-mono text-[14px] text-ink-muted tabular">{((status === "queued" ? queued : elapsed) / 1000).toFixed(1)}s</span>
+          <div className="t-h3 flex flex-wrap items-center gap-2">
+            <span className={cx(status === "done" || run.doneAt ? "fg-1" : "shimmer")}>{statusText}</span>
+            {status === "queued" && <span className="t-mono fg-3 text-[13px]">{(queued / 1000).toFixed(1)}s</span>}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {firstStats && <SpeedBadge ms={firstStats.genMs} tps={firstStats.tps} />}
-            <span className="text-[13px] text-ink-muted">Kimi K3.1 Pro on Cerebras · OpenClaw agent</span>
+          <div className="t-meta fg-3 mt-0.5">Kimi K3.1 Pro on Cerebras · OpenClaw agent</div>
+
+          {/* Hero: the speed moment */}
+          <div className="mt-6 flex flex-wrap items-end gap-x-10 gap-y-4">
+            <Stat value={live ? fmtNum(tps) : "0"} unit="tok/s" dim={!live} accent />
+            <Stat value={live ? gen.toFixed(2) : "0.00"} unit={`s for all ${slots.length}`} dim={!live} />
+            <Stat value={live ? fmtNum(tokens) : "0"} unit="tokens" dim={!live} small />
           </div>
+
+          {status === "queued" && (
+            <p className="t-body fg-3 mt-4 max-w-lg text-balance">
+              Cerebras is busy with hackathon traffic, so the request is waiting for a slot. Once it starts, all {slots.length} edits write in about a second,
+              in parallel.
+            </p>
+          )}
           {status === "preparing" && run.phase?.startsWith("Watching") && (
-            <p className="mt-4 max-w-lg text-[14px] leading-6 text-ink-muted">
+            <p className="t-body fg-3 mt-4 max-w-lg text-balance">
               Downloading it, sampling frames and asking Kimi for its cut rate, caption style, zooms and sound. Your nine edits copy that style.
             </p>
           )}
-          {status === "queued" && (
-            <p className="mt-4 max-w-lg text-[14px] leading-6 text-ink-muted">
-              Cerebras is busy with hackathon traffic, so your request is waiting for a slot. Once it starts, all {slots.length} edits write in about a
-              second each, in parallel.
-            </p>
-          )}
-          {run.warning && <p className="mt-2 text-[13px] text-danger">{run.warning}</p>}
+          {run.warning && <p className="t-meta mt-2 text-danger">{run.warning}</p>}
 
-          <ul className="mt-5 space-y-1.5 text-[14px]">
-            {(plan ? decisions(plan) : []).map((d, i) => (
-              <li
-                key={i}
-                className={cx("flex items-start gap-2 transition-[opacity,transform] duration-[240ms] ease-out", d.track < reveal ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0")}
-              >
-                <span className="mt-0.5 text-violet">✓</span>
-                <span className="min-w-0">{d.text}</span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-6 rounded-lg border border-border bg-surface p-3">
-            {plan ? <Timeline plan={plan} reveal={reveal} compact /> : <div className="h-[214px] animate-pulse rounded-md bg-surface-2" />}
-          </div>
-
-          <div className="mt-6 flex items-center gap-4">
-            <div className="grid grid-cols-9 gap-1">
+          <div className="mt-6 flex items-center gap-3">
+            <div className="flex gap-1">
               {slots.map((id, i) => (
                 <span
                   key={i}
                   title={id ? plans[id]?.base.title : (slotErrors[i] ?? "planning…")}
-                  className={cx("h-8 w-[18px] rounded-[4px] transition-colors duration-[240ms]", id ? "bg-flare" : slotErrors[i] ? "bg-danger/40" : "animate-pulse bg-surface-2")}
+                  className={cx(
+                    "h-6 w-3.5 rounded-[3px] transition-colors duration-[var(--dur-2)]",
+                    id ? "bg-flare" : slotErrors[i] ? "bg-danger/40" : "layer-2 hair animate-pulse",
+                  )}
                 />
               ))}
             </div>
-            <span className="font-mono text-[13px] text-ink-muted tabular">
+            <span className="t-mono t-meta fg-3">
               {ready}/{slots.length} edits{failed ? ` · ${failed} failed` : ""}
             </span>
+          </div>
+
+          <ul className="t-body mt-5 space-y-1">
+            {(plan ? decisions(plan) : []).map((d, i) => (
+              <li
+                key={i}
+                className={cx("flex items-start gap-2 transition-[opacity,transform] duration-[var(--dur-2)] ease-out", d.track < reveal ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0")}
+              >
+                <span className="text-violet">✓</span>
+                <span className="fg-2 min-w-0">{d.text}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="layer-1 hair mt-5 rounded-[12px] p-3">
+            {plan ? <Timeline plan={plan} reveal={reveal} compact /> : <div className="layer-2 h-[190px] animate-pulse rounded-[8px]" />}
           </div>
         </div>
       </main>
     </Shell>
+  );
+}
+
+function Stat({ value, unit, dim, accent, small }: { value: string; unit: string; dim?: boolean; accent?: boolean; small?: boolean }) {
+  return (
+    <div className={cx("transition-opacity duration-[var(--dur-3)]", dim && "opacity-35")}>
+      <div
+        className={cx(
+          "t-mono leading-none tracking-[-0.04em]",
+          small ? "text-[28px]" : "text-[56px] sm:text-[72px]",
+          accent ? "text-violet" : "fg-1",
+        )}
+      >
+        {value}
+      </div>
+      <div className="t-meta fg-3 mt-1.5">{unit}</div>
+    </div>
   );
 }

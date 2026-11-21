@@ -4,22 +4,22 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { DEMO_VARIANTS } from "./variants";
 import { HERO_RAW } from "./showcase-clips";
 import { PhoneTile } from "./PhoneTile";
-import { IconBolt } from "./icons";
 
-const PLAN_MS = 1700; // how long the "raw clip, planning" beat lasts
-const HOLD_MS = 6200; // how long the grid stays open
+const PLAN_MS = 1900; // the "raw clip, agent planning" beat
+const HOLD_MS = 6400; // how long the grid stays open
 const FOLD_MS = 900;
-const FINAL_SECONDS = 7.6; // ~5,300 tokens at ~700 tok/s (measured 580–760 at kickoff)
+export const FINAL_SECONDS = 7.6; // ~5,300 tokens at ~700 tok/s (measured 580–760 at kickoff)
 
-type Phase = "planning" | "unfolded" | "folding";
+export type UnfoldPhase = "planning" | "unfolded" | "folding";
 
-/** Hero visual: one raw clip fans out into a 3×3 grid of 9:16 edits, on a loop. */
-export function UnfoldReveal() {
-  const [phase, setPhase] = useState<Phase>("planning");
+/** Drives the loop: planning (raw clip + timer) → unfolded grid → fold back → repeat. */
+export function useUnfoldCycle(active = true) {
+  const [phase, setPhase] = useState<UnfoldPhase>("planning");
   const [elapsed, setElapsed] = useState(0);
   const raf = useRef<number | null>(null);
 
   useEffect(() => {
+    if (!active) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -47,72 +47,55 @@ export function UnfoldReveal() {
       timers.push(setTimeout(() => setPhase("folding"), PLAN_MS + HOLD_MS));
       timers.push(setTimeout(cycle, PLAN_MS + HOLD_MS + FOLD_MS));
     };
-    timers.push(setTimeout(cycle, 350));
+    timers.push(setTimeout(cycle, 500));
 
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, []);
+  }, [active]);
 
-  const open = phase === "unfolded";
-  const done = phase !== "planning" || elapsed >= FINAL_SECONDS;
+  return { phase, elapsed, open: phase === "unfolded", planning: phase === "planning" && elapsed < FINAL_SECONDS };
+}
 
+/** One raw clip stacked on the centre cell, fanning out into a 3×3 grid of 9:16 edits. */
+export function UnfoldGrid({ open, className = "", style }: { open: boolean; className?: string; style?: CSSProperties }) {
   return (
-    <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[380px] lg:max-w-[372px] xl:max-w-[400px]">
-      <div className="mk-glow pointer-events-none absolute -inset-10 -z-10 opacity-70" />
-
-      <div className="relative">
-        <div className="mk-grid" data-state={open ? "unfolded" : "folded"}>
-          {DEMO_VARIANTS.map((v, i) => (
-            <div
-              key={i}
-              className={`mk-tile ring-1 ring-black/10 dark:ring-white/10 ${open ? "shadow-[0_12px_30px_-12px_rgb(0_0_0/.45)]" : ""}`}
-              style={{ "--i": i, "--r": Math.floor(i / 3), "--c": i % 3 } as CSSProperties}
-            >
-              <PhoneTile v={v} />
-            </div>
-          ))}
-        </div>
-
-        {/* Raw clip sits on top of the stack while the agent plans. */}
-        <div className="mk-raw-layer mk-grid pointer-events-none absolute inset-0">
+    <div className={`relative ${className}`} style={style}>
+      <div className="mk-grid" data-state={open ? "unfolded" : "folded"}>
+        {DEMO_VARIANTS.map((v, i) => (
           <div
-            className="mk-raw relative overflow-hidden rounded-2xl bg-black shadow-[0_20px_50px_-15px_rgb(0_0_0/.6)] ring-1 ring-white/15"
-            style={{ gridColumn: 2, gridRow: 2, aspectRatio: "9 / 16" }}
+            key={i}
+            className={`mk-tile mk-frame mk-dark-frame ${open ? "shadow-[0_10px_24px_-12px_rgb(0_0_0/.5)]" : ""}`}
+            style={{ "--i": i, "--r": Math.floor(i / 3), "--c": i % 3 } as CSSProperties}
           >
-            <video
-              src={HERO_RAW.src}
-              poster={HERO_RAW.poster}
-              className="absolute inset-0 h-full w-full object-cover"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              aria-hidden
-            />
-            <div className="mk-scan absolute inset-0" />
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wider text-white">
-              raw
-            </span>
+            <PhoneTile v={v} />
           </div>
-        </div>
+        ))}
       </div>
 
-      {/* Speed badge */}
-      <div className="mt-5 flex justify-center">
+      {/* Raw clip sits on top of the stack while the agent plans. */}
+      <div className="mk-raw-layer mk-grid pointer-events-none absolute inset-0">
         <div
-          className="tabular inline-flex items-center gap-2 rounded-full border border-violet/20 bg-violet/10 px-3 py-1.5 font-mono text-[12px] font-medium text-violet sm:text-[13px]"
-          aria-live="polite"
+          className="mk-raw mk-frame mk-dark-frame relative overflow-hidden rounded-xl bg-black shadow-[0_20px_50px_-15px_rgb(0_0_0/.6)]"
+          style={{ gridColumn: 2, gridRow: 2, aspectRatio: "9 / 16" }}
         >
-          <IconBolt size={13} className="text-flare" />
-          {done ? (
-            <span>9 edits · {FINAL_SECONDS.toFixed(1)}s · 700 tok/s</span>
-          ) : (
-            <span>planning 9 edits · {elapsed.toFixed(1)}s</span>
-          )}
+          <video
+            src={HERO_RAW.src}
+            poster={HERO_RAW.poster}
+            className="absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden
+          />
+          <div className="mk-scan absolute inset-0" />
+          <span className="absolute left-1.5 top-1.5 z-[3] rounded-full bg-black/70 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wider text-white">
+            raw
+          </span>
         </div>
       </div>
     </div>

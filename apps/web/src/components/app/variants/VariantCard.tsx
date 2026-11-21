@@ -17,7 +17,7 @@ export function PhoneFrame({ plan, frames, playing, className }: { plan: EditPla
   useCaptionFonts();
   const firstChunk = plan.captions.enabled ? plan.captions.chunks[0] : undefined;
   return (
-    <div className={cx("relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-black", className)}>
+    <div className={cx("hair relative aspect-[9/16] overflow-hidden rounded-[20px] bg-black", className)}>
       {playing ? (
         <PlanPlayer plan={plan} muted autoPlay loop />
       ) : (
@@ -25,13 +25,13 @@ export function PhoneFrame({ plan, frames, playing, className }: { plan: EditPla
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={planThumb(plan, frames)} alt="" className="absolute inset-0 size-full object-cover" />
           {plan.hookText && (
-            <div className="absolute inset-x-[6%] top-[7%] rounded-[10px] bg-black/55 px-2 py-1.5 text-center font-black uppercase leading-[1.05] text-white text-[clamp(10px,2.6cqw,15px)]" style={{ fontFamily: captionFamily("bold-pop") }}>
+            <div className="absolute inset-x-[6%] top-[7%] rounded-[10px] bg-black/55 px-2 py-1.5 text-center uppercase leading-[1.05] text-white [font-weight:900] text-[clamp(10px,2.6cqw,15px)]" style={{ fontFamily: captionFamily("bold-pop") }}>
               {plan.hookText}
             </div>
           )}
           {firstChunk && (
             <div
-              className="absolute inset-x-[5%] text-center font-black leading-tight text-white"
+              className="absolute inset-x-[5%] text-center leading-tight text-white [font-weight:900]"
               style={{
                 top: { upper: "20%", center: "50%", lower: "74%" }[plan.captions.position],
                 fontSize: "clamp(12px, 3.2cqw, 20px)",
@@ -48,7 +48,7 @@ export function PhoneFrame({ plan, frames, playing, className }: { plan: EditPla
               ))}
             </div>
           )}
-          <div className="absolute bottom-2.5 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur transition-opacity duration-[120ms] group-hover:opacity-100">
+          <div className="absolute bottom-3 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full bg-black/40 text-[11px] text-white opacity-0 backdrop-blur transition-opacity duration-[var(--dur-1)] group-hover:opacity-100">
             ▶
           </div>
         </>
@@ -67,21 +67,21 @@ export function VariantCard({ plan, stats, index, frames }: { plan: EditPlan; st
       onMouseLeave={() => setHover(false)}
       onFocus={() => setHover(true)}
       onBlur={() => setHover(false)}
-      className="group block rounded-xl outline-none [container-type:inline-size] focus-visible:ring-2 focus-visible:ring-flare"
+      className="group block rounded-[20px] outline-none [container-type:inline-size]"
     >
-      <div className="relative transition-transform duration-[240ms] ease-out group-hover:-translate-y-1">
-        <PhoneFrame plan={plan} frames={frames} playing={hover} className="group-hover:border-ink-muted group-hover:shadow-float" />
-        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 font-mono text-[11px] text-white backdrop-blur tabular">
+      <div className="relative transition-transform duration-[var(--dur-spring)] [transition-timing-function:var(--ease-spring)] group-hover:-translate-y-1">
+        <PhoneFrame plan={plan} frames={frames} playing={hover} className="transition-shadow duration-[var(--dur-2)] group-hover:shadow-[inset_0_0_0_0.5px_var(--hair-strong),var(--shadow-high)]" />
+        <span className="t-mono absolute left-2.5 top-2.5 rounded-full bg-black/50 px-1.5 text-[10px] leading-5 text-white/90 backdrop-blur">
           {String(index + 1).padStart(2, "0")}
         </span>
       </div>
       <div className="mt-2.5 px-0.5">
         <div className="flex items-center gap-1.5">
           <span className="size-2 shrink-0 rounded-full" style={{ background: meta.swatch[0] }} />
-          <span className="truncate text-[15px] font-semibold">{plan.title}</span>
+          <span className="t-h3 truncate">{plan.title}</span>
         </div>
-        <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-ink-muted">{plan.rationale}</p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-ink-muted tabular">
+        <p className="t-body fg-2 mt-0.5 line-clamp-2">{plan.rationale}</p>
+        <div className="t-mono t-meta fg-3 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-normal">
           <span>{fmtSec(plan.durationSec)}</span>·<span>{plan.clips.length} cuts</span>·<span>{plan.sfx.length} sfx</span>
           {plan.music && (
             <>
@@ -89,7 +89,7 @@ export function VariantCard({ plan, stats, index, frames }: { plan: EditPlan; st
             </>
           )}
         </div>
-        {stats && <SpeedBadge ms={stats.genMs} tps={stats.tps} label="" className="mt-1.5 !text-[11px]" />}
+        {stats && <SpeedBadge ms={stats.genMs} tps={stats.tps} label="" className="mt-2" />}
       </div>
     </Link>
   );

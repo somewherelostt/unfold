@@ -1,0 +1,176 @@
+/*
+ * Product UI tokens + utilities, scoped to `.uf-app` (wrapper in app/(app)/app/layout.tsx).
+ * Candidates for promotion to tokens.css are the custom properties in the first block.
+ */
+.uf-app {
+  /* Text tiers (instead of weights) */
+  --fg-1: var(--ink);
+  --fg-2: color-mix(in oklab, var(--ink) 68%, transparent);
+  --fg-3: color-mix(in oklab, var(--ink) 52%, transparent);
+  --fg-4: color-mix(in oklab, var(--ink) 36%, transparent);
+
+  /* Hairlines: 0.5px, ink at 10% / 20% / 38% */
+  --hair-w: 0.5px;
+  --hair: color-mix(in oklab, var(--ink) 10%, transparent);
+  --hair-hover: color-mix(in oklab, var(--ink) 20%, transparent);
+  --hair-strong: color-mix(in oklab, var(--ink) 38%, transparent);
+
+  /* Interaction tints, stacked over any surface via background-image */
+  --tint-hover: color-mix(in oklab, var(--ink) 5.5%, transparent);
+  --tint-press: color-mix(in oklab, var(--ink) 11%, transparent);
+
+  /* Layered surfaces */
+  --layer-0: var(--bg); /* canvas */
+  --layer-1: var(--surface); /* cards */
+  --layer-2: var(--surface-2); /* wells, chips */
+  --glass: color-mix(in oklab, var(--surface) 72%, transparent);
+  --panel: color-mix(in oklab, var(--surface) 95%, transparent);
+
+  /* Signal colours */
+  --flare-30: color-mix(in oklab, var(--flare) 30%, transparent);
+  --flare-10: color-mix(in oklab, var(--flare) 10%, transparent);
+  --violet-12: color-mix(in oklab, var(--violet) 12%, transparent);
+
+  /* Depth (halved alpha in light, full in dark) */
+  --shadow-low: 0 2px 5px rgb(0 0 0 / 0.05);
+  --shadow-med: 0 4px 10px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-high: 0 8px 24px rgb(0 0 0 / 0.12), 0 2px 4px rgb(0 0 0 / 0.04);
+
+  /* Motion */
+  --dur-1: 125ms;
+  --dur-2: 200ms;
+  --dur-3: 300ms;
+  --dur-4: 600ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-enter: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-pop: cubic-bezier(0.34, 1.3, 0.64, 1);
+  /* spring (stiffness ~200, damping ~25, light bounce) */
+  --ease-spring: linear(0, 0.08 4.5%, 0.3 10%, 0.75 21%, 0.96 28%, 1.04 34%, 1.06 39%, 1.04 47%, 1.01 57%, 0.997 70%, 1);
+  --dur-spring: 240ms;
+
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg-1);
+  caret-color: var(--flare);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .uf-app {
+    --shadow-low: 0 2px 5px rgb(0 0 0 / 0.1);
+    --shadow-med: 0 4px 10px rgb(0 0 0 / 0.5);
+    --shadow-high: 0 8px 20px rgb(0 0 0 / 0.5);
+    --glass: color-mix(in oklab, var(--surface) 60%, transparent);
+  }
+}
+:root[data-theme="dark"] .uf-app {
+  --shadow-low: 0 2px 5px rgb(0 0 0 / 0.1);
+  --shadow-med: 0 4px 10px rgb(0 0 0 / 0.5);
+  --shadow-high: 0 8px 20px rgb(0 0 0 / 0.5);
+  --glass: color-mix(in oklab, var(--surface) 60%, transparent);
+}
+
+.uf-app ::selection {
+  background: var(--flare-30);
+}
+
+/* ---------- type ---------- */
+.uf-app .t-display { font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: -0.03em; }
+.uf-app .t-h1 { font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -0.02em; }
+.uf-app .t-h2 { font-size: 19px; line-height: 28px; font-weight: 500; letter-spacing: -0.01em; }
+.uf-app .t-h3 { font-size: 15px; line-height: 22px; font-weight: 500; }
+.uf-app .t-body { font-size: 13px; line-height: 20px; font-weight: 400; }
+.uf-app .t-label { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.uf-app .t-meta { font-size: 11px; line-height: 16px; font-weight: 400; letter-spacing: 0.005em; }
+.uf-app .t-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+@media (max-width: 640px) {
+  .uf-app .t-display { font-size: 30px; line-height: 34px; }
+}
+
+.uf-app .fg-1 { color: var(--fg-1); }
+.uf-app .fg-2 { color: var(--fg-2); }
+.uf-app .fg-3 { color: var(--fg-3); }
+.uf-app .fg-4 { color: var(--fg-4); }
+
+/* ---------- surfaces ---------- */
+.uf-app .hair { box-shadow: inset 0 0 0 var(--hair-w) var(--hair); }
+.uf-app .hair-hover:hover { box-shadow: inset 0 0 0 var(--hair-w) var(--hair-hover); }
+.uf-app .hair-strong { box-shadow: inset 0 0 0 var(--hair-w) var(--hair-strong); }
+.uf-app .hair-b { box-shadow: inset 0 calc(-1 * var(--hair-w)) 0 var(--hair); }
+.uf-app .hair-t { box-shadow: inset 0 var(--hair-w) 0 var(--hair); }
+.uf-app .float { box-shadow: inset 0 0 0 var(--hair-w) var(--hair), var(--shadow-high); }
+.uf-app .float-med { box-shadow: inset 0 0 0 var(--hair-w) var(--hair), var(--shadow-med); }
+.uf-app .glass { background: var(--glass); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); }
+.uf-app .panel { background: var(--panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.uf-app .layer-0 { background: var(--layer-0); }
+.uf-app .layer-1 { background: var(--layer-1); }
+.uf-app .layer-2 { background: var(--layer-2); }
+
+/* Hover/press tints that stack on any surface */
+.uf-app .tint { cursor: pointer; }
+.uf-app .tint:hover { background-image: linear-gradient(var(--tint-hover), var(--tint-hover)); }
+.uf-app .tint:active { background-image: linear-gradient(var(--tint-press), var(--tint-press)); }
+.uf-app .tint[aria-pressed="true"],
+.uf-app .tint[data-active="true"] { background-image: linear-gradient(var(--tint-press), var(--tint-press)); color: var(--fg-1); }
+
+/* Focus ring: ink hairline + soft flare halo */
+.uf-app :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--fg-1), 0 0 0 4px color-mix(in oklab, var(--flare) 22%, transparent);
+}
+
+.uf-app .no-scrollbar { scrollbar-width: none; }
+.uf-app .no-scrollbar::-webkit-scrollbar { display: none; }
+.uf-app .thin-scrollbar { scrollbar-width: thin; scrollbar-color: var(--hair-hover) transparent; }
+.uf-app .chrome { user-select: none; -webkit-user-select: none; }
+.uf-app button:not(:disabled) { cursor: pointer; }
+
+/* ---------- motion ---------- */
+@keyframes uf-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+/* Agent states only: violet shimmer text */
+.uf-app .shimmer {
+  background-image: linear-gradient(90deg, color-mix(in oklab, var(--violet) 45%, transparent) 0%, var(--violet) 35%, color-mix(in oklab, var(--violet) 25%, var(--fg-1)) 50%, var(--violet) 65%, color-mix(in oklab, var(--violet) 45%, transparent) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: uf-shimmer 1.5s linear infinite;
+}
+
+@keyframes uf-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+.uf-app .pop-in { animation: uf-pop-in var(--dur-2) var(--ease-enter) both; transform-origin: 50% 100%; }
+
+@keyframes uf-spring-up {
+  from { opacity: 0; transform: translate(-50%, 20px) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.uf-app .spring-up { animation: uf-spring-up 420ms var(--ease-spring) both; animation-delay: 120ms; }
+
+@keyframes uf-panel-left { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes uf-panel-right { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes uf-panel-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.uf-app .panel-in-left { animation: uf-panel-left var(--dur-spring) var(--ease-spring) both; }
+.uf-app .panel-in-right { animation: uf-panel-right var(--dur-spring) var(--ease-spring) both; }
+.uf-app .panel-in-up { animation: uf-panel-up var(--dur-spring) var(--ease-spring) both; }
+
+@keyframes uf-blur-in { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: blur(0); } }
+.uf-app .blur-in { animation: uf-blur-in var(--dur-4) ease-out both; }
+
+/* Dialog */
+.uf-app dialog.uf-dialog[open] { animation: uf-pop-in var(--dur-2) var(--ease-enter) both; transform-origin: 50% 40%; }
+.uf-app dialog.uf-dialog::backdrop { background: rgb(0 0 0 / 0.45); backdrop-filter: blur(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .uf-app .shimmer,
+  .uf-app .pop-in,
+  .uf-app .spring-up,
+  .uf-app .panel-in-left,
+  .uf-app .panel-in-right,
+  .uf-app .panel-in-up,
+  .uf-app .blur-in,
+  .uf-app dialog.uf-dialog[open] { animation: none; }
+}

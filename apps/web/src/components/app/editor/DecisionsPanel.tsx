@@ -5,7 +5,7 @@ import { actions } from "@/lib/client/store";
 import type { Overrides } from "@/lib/client/types";
 import type { PlayerRef } from "../preview/PlanPlayer";
 import { captionFamily, useCaptionFonts } from "../fonts";
-import { Chip, Icon, MicroLabel, STYLE_META, Toggle, cx, fmtTime, sfxEmoji } from "../ui";
+import { Button, Chip, Icon, MicroLabel, STYLE_META, Toggle, cx, fmtTime, sfxEmoji } from "../ui";
 
 export const SECTIONS = [
   { key: "captions", label: "Captions", icon: "captions" },
@@ -60,10 +60,10 @@ export function DecisionsPanel({
   const meta = STYLE_META[plan.style];
 
   return (
-    <div className="space-y-1 p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <span className={cx("size-2 rounded-full", manual ? "bg-flare" : "bg-violet")} />
-        <h2 className="text-[15px] font-semibold">{manual ? "Manual edits" : "Agent decisions"}</h2>
+    <div className="px-3 pb-3 pt-2">
+      <div className="flex h-8 items-center gap-2">
+        <span className={cx("size-1.5 rounded-full", manual ? "bg-flare" : "bg-violet")} />
+        <h2 className="t-label fg-2">{manual ? "Manual edits" : "Agent decisions"}</h2>
       </div>
 
       <Section id="captions" title="Captions" on={plan.captions.enabled} onToggle={(v) => set({ captions: v })}>
@@ -73,19 +73,19 @@ export function DecisionsPanel({
               key={p.id}
               onClick={() => set({ captionPreset: p.id, captions: true })}
               className={cx(
-                "flex flex-col items-center gap-1 rounded-md border p-1.5 transition-colors duration-[120ms]",
-                plan.captions.preset === p.id ? "border-flare bg-flare/5" : "border-border hover:border-ink-muted",
+                "tint flex flex-col items-center gap-1 rounded-[8px] p-1",
+                plan.captions.preset === p.id ? "bg-[var(--flare-10)] shadow-[inset_0_0_0_1px_var(--flare)]" : "hair hair-hover",
               )}
             >
-              <span className="flex h-11 w-full items-center justify-center rounded-[6px] bg-[#1d1d21]">
+              <span className="flex h-10 w-full items-center justify-center rounded-[5px] bg-[#1a1a1d]">
                 <span
-                  className="text-[13px] font-black leading-none text-white"
+                  className="text-[13px] leading-none text-white [font-weight:900]"
                   style={{ fontFamily: p.font, WebkitTextStroke: "2px #000", paintOrder: "stroke fill", textTransform: p.upper ? "uppercase" : "none" }}
                 >
                   so <span style={{ color: p.hi }}>crazy</span>
                 </span>
               </span>
-              <span className="text-[11px] text-ink-muted">{p.label}</span>
+              <span className={cx("t-meta", plan.captions.preset === p.id ? "text-flare" : "fg-3")}>{p.label}</span>
             </button>
           ))}
         </div>
@@ -101,7 +101,7 @@ export function DecisionsPanel({
             <select
               value={plan.music?.trackId ?? base.music.trackId}
               onChange={(e) => set({ trackId: e.target.value, music: true })}
-              className="h-9 w-full rounded-sm border border-border bg-surface-2 px-2 text-[13px] outline-none focus:border-flare"
+              className="tint layer-2 hair t-body h-8 w-full rounded-[8px] px-2 outline-none"
             >
               {library.music.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -109,7 +109,7 @@ export function DecisionsPanel({
                 </option>
               ))}
             </select>
-            <label className="mt-3 flex items-center gap-3 text-[13px] text-ink-muted">
+            <label className="t-label fg-3 mt-3 flex items-center gap-3 font-normal">
               Volume
               <input
                 type="range"
@@ -118,9 +118,9 @@ export function DecisionsPanel({
                 step={0.05}
                 value={plan.music?.volume ?? base.music.volume}
                 onChange={(e) => set({ volume: Number(e.target.value), music: true })}
-                className="flex-1 accent-[var(--flare)]"
+                className="h-1 flex-1 cursor-pointer accent-[var(--flare)]"
               />
-              <span className="w-9 text-right font-mono text-[12px] tabular">{Math.round((plan.music?.volume ?? base.music.volume) * 100)}%</span>
+              <span className="t-mono fg-2 w-9 text-right text-[11px]">{Math.round((plan.music?.volume ?? base.music.volume) * 100)}%</span>
             </label>
             <Meta>{plan.music ? `${plan.music.beats.length} beat markers · cuts snapped to the grid` : "Muted"}</Meta>
           </>
@@ -135,9 +135,9 @@ export function DecisionsPanel({
             <button
               key={i}
               onClick={() => seek(s.at)}
-              className={cx("inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12px]", plan.sfx.length ? "bg-track-sfx/15 text-ink" : "bg-surface-2 text-ink-muted line-through")}
+              className={cx("tint t-label inline-flex h-6 items-center gap-1 rounded-full px-2 font-normal", plan.sfx.length ? "bg-track-sfx/12 fg-1" : "layer-2 fg-4 line-through")}
             >
-              {sfxEmoji(s.sfxId)} {s.name} <span className="font-mono text-[11px] text-ink-muted tabular">{fmtTime(s.at)}</span>
+              {sfxEmoji(s.sfxId)} {s.name} <span className="t-mono fg-3 text-[10px] font-normal">{fmtTime(s.at)}</span>
             </button>
           ))}
           {!base.sfx.length && <Meta>No meme sounds in this edit.</Meta>}
@@ -150,16 +150,16 @@ export function DecisionsPanel({
             <button
               key={i}
               onClick={() => seek(t.at)}
-              className={cx("inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[12px]", plan.transitions.length ? "bg-track-transition/15" : "bg-surface-2 text-ink-muted line-through")}
+              className={cx("tint t-label inline-flex h-6 items-center gap-1.5 rounded-full px-2 font-normal", plan.transitions.length ? "bg-track-transition/12 fg-1" : "layer-2 fg-4 line-through")}
             >
               <span className="size-2 rotate-45 rounded-[1px] bg-track-transition" />
-              {t.type} <span className="font-mono text-[11px] text-ink-muted tabular">{fmtTime(t.at)}</span>
+              {t.type} <span className="t-mono fg-3 text-[10px] font-normal">{fmtTime(t.at)}</span>
             </button>
           ))}
           {!base.transitions.length && <Meta>Straight cuts only.</Meta>}
         </div>
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-[13px]">Zoom punches</span>
+          <span className="t-body fg-2">Zoom punches</span>
           <Toggle label="Zoom punches" checked={plan.zooms.length > 0} onChange={(v) => set({ zooms: v })} />
         </div>
         <Meta>{base.zooms.length} zooms · {base.zooms.map((z) => `${z.kind} ${z.scale}×`).join(", ") || "none"}</Meta>
@@ -181,8 +181,8 @@ export function DecisionsPanel({
             </Chip>
           ))}
         </div>
-        <div className="mt-4 rounded-md bg-surface-2 p-3">
-          <div className="flex items-center gap-2 text-[13px] font-medium">
+        <div className="layer-2 mt-3 rounded-[8px] p-3">
+          <div className="t-label flex items-center gap-2">
             <span className="flex gap-0.5">
               {meta.swatch.map((c) => (
                 <span key={c} className="size-2.5 rounded-full border border-black/10" style={{ background: c }} />
@@ -190,22 +190,22 @@ export function DecisionsPanel({
             </span>
             {meta.label}
           </div>
-          <p className="mt-1 text-[13px] leading-5 text-ink-muted">{plan.rationale}</p>
+          <p className="t-body fg-2 mt-1">{plan.rationale}</p>
           {plan.hookText && (
-            <p className="mt-2 text-[13px]">
-              <span className="text-ink-muted">Hook:</span> “{plan.hookText}”
+            <p className="t-body mt-2">
+              <span className="fg-3">Hook:</span> “{plan.hookText}”
             </p>
           )}
         </div>
       </Section>
 
       <Section id="export" title="Export">
-        <p className="text-[13px] text-ink-muted">
+        <p className="t-mono t-meta fg-3 font-normal">
           MP4 · {plan.width}×{plan.height} · {plan.fps} fps · {plan.durationSec.toFixed(1)}s
         </p>
-        <button onClick={onExport} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-flare text-[14px] font-medium text-flare-ink hover:brightness-105">
-          <Icon name="export" className="size-4" /> Export MP4
-        </button>
+        <Button variant="primary" onClick={onExport} className="mt-3 w-full">
+          <Icon name="export" /> Export MP4
+        </Button>
       </Section>
     </div>
   );
@@ -227,9 +227,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={`sec-${id}`} className="scroll-mt-3 border-b border-border py-4 last:border-b-0">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[13px] font-semibold">{title}</h3>
+    <section id={`sec-${id}`} className="hair-b scroll-mt-2 py-3 last:shadow-none">
+      <div className="mb-2.5 flex h-5 items-center justify-between">
+        <h3 className="t-label">{title}</h3>
         {onToggle && !disabled && <Toggle label={title} checked={!!on} onChange={onToggle} />}
       </div>
       {children}
@@ -238,5 +238,5 @@ function Section({
 }
 
 function Meta({ children }: { children: React.ReactNode }) {
-  return <p className="mt-2 text-[12px] leading-5 text-ink-muted">{children}</p>;
+  return <p className="t-meta fg-3 mt-2">{children}</p>;
 }
