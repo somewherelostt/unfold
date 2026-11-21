@@ -8,7 +8,7 @@ const displayFont = Bricolage_Grotesque({ variable: "--font-display-face", subse
 
 export const metadata: Metadata = {
   title: "Unfold",
-  description: "Turn one clip into every version that could go viral.",
+  description: "Raw footage in. Viral edit out. Drop in your clip. Unfold adds scroll-stopping captions, beat-synced music, transitions and sound effects in seconds.",
   icons: { icon: "/logo-mark.svg" },
 };
 

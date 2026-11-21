@@ -4,9 +4,11 @@ Unfold turns one raw clip into many viral edits, instantly. The brand should fee
 
 ## Name and voice
 - Name: **Unfold** (wordmark is lowercase `unfold`; in sentences write "Unfold").
-- Headline: "Turn one clip into every version that could go viral."
-- X / demo line: "One raw clip. Nine viral edits. Four seconds."
-- Voice: short, verb-led, second person, sentence case. Periods, no exclamation marks. Numbers carry the claims ("9 edits · 4.8s").
+- Headline: "Raw footage in. Viral edit out."
+- Sub: "Drop in your clip. Unfold adds scroll-stopping captions, beat-synced music, transitions and sound effects in seconds."
+- X / demo line: "Raw clip to viral edit in seconds. Kimi K3.1 Pro on Cerebras."
+- Positioning: the core is the edit itself (captions, transitions, music, sound effects). Alternate versions are a secondary feature; never lead with them.
+- Voice: short, verb-led, second person, sentence case. Periods, no exclamation marks. Numbers carry the claims ("edit planned in 0.8s · 700 tok/s").
 - Words we use: clip, edit, variant, hook, beat, caption, remix. Avoid: "magic", "revolutionary", "AI-powered" in headlines.
 
 ## Logo

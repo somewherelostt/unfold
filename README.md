@@ -1,8 +1,8 @@
 # Unfold
 
-Turn one clip into every version that could go viral.
+Raw footage in. Viral edit out.
 
-Upload a raw clip. An OpenClaw agent running **Kimi K3.1 Pro on Cerebras** decides the hook, the cuts, word-by-word captions, a beat-synced music track, transitions and meme sound effects, and returns nine different edits in seconds. Chat to remix any of them, or paste an inspiration video and Unfold copies its style.
+Upload a raw clip. An OpenClaw agent running **Kimi K3.1 Pro on Cerebras** decides the hook, the cuts, styled word-by-word captions, a beat-synced music track, transitions and sound effects, and returns a finished edit in seconds. Chat to change anything, paste an inspiration video to copy its style, or try a few alternate versions.
 
 ## How it works
 ```
@@ -11,7 +11,7 @@ raw clip ──► media pipeline (transcript with word timings, scenes, frames,
 asset library (music with beat grids, SFX) ──┤
                               ▼
         OpenClaw agent · Kimi K3.1 Pro on Cerebras
-        writes an AgentPlan (JSON) per variant, 9 in parallel
+        writes an AgentPlan (JSON): hook, cuts, captions, music, transitions, SFX
                               ▼
         compileEditPlan(): maps source time to output time, snaps cuts to beats, builds caption chunks
                               ▼
