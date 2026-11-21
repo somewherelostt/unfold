@@ -1,0 +1,70 @@
+/* Unfold design tokens. Import once at the app root. */
+:root {
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F3F2EE;
+  --border: #E6E4DE;
+  --ink: #0B0B0C;
+  --ink-muted: #6A6A70;
+  --flare: #FF5A1F;
+  --flare-ink: #FFFFFF;
+  --violet: #7B5CFF;
+  --caption-yellow: #FFE14D;
+  --success: #18B26B;
+  --danger: #E5484D;
+
+  --track-video: #3A3A40;
+  --track-captions: #7B5CFF;
+  --track-music: #2F80ED;
+  --track-beat: #9CC3FF;
+  --track-sfx: #FF4FA3;
+  --track-transition: #FFB020;
+  --track-zoom: #18B26B;
+
+  --gradient-brand: linear-gradient(135deg, #FF5A1F 0%, #FF4FA3 50%, #7B5CFF 100%);
+
+  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ui-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --shadow-float: 0 1px 2px rgb(0 0 0 / .06), 0 8px 24px rgb(0 0 0 / .06);
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --dur-fast: 120ms;
+  --dur-panel: 240ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C0C0E;
+    --surface: #151518;
+    --surface-2: #1D1D21;
+    --border: #2A2A30;
+    --ink: #F5F5F2;
+    --ink-muted: #9A9AA3;
+    --flare: #FF6A33;
+    --flare-ink: #0C0C0E;
+    --violet: #8F75FF;
+    --success: #2BD27F;
+    --danger: #FF6369;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0C0C0E;
+  --surface: #151518;
+  --surface-2: #1D1D21;
+  --border: #2A2A30;
+  --ink: #F5F5F2;
+  --ink-muted: #9A9AA3;
+  --flare: #FF6A33;
+  --flare-ink: #0C0C0E;
+  --violet: #8F75FF;
+  --success: #2BD27F;
+  --danger: #FF6369;
+}

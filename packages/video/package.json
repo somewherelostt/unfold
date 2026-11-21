@@ -1,0 +1,33 @@
+{
+  "name": "@unfold/video",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@remotion/bundler": "4.0.545",
+    "@remotion/cli": "4.0.545",
+    "@remotion/google-fonts": "4.0.545",
+    "@remotion/renderer": "4.0.545",
+    "@unfold/core": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.545"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./render": "./src/render.ts"
+  },
+  "scripts": {
+    "studio": "remotion studio src/entry.ts --port 3004 --public-dir ../../apps/web/public",
+    "typecheck": "tsc --noEmit",
+    "render:sample": "tsx scripts/render-sample.ts"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@unfold/media",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "bin": { "unfold-media": "src/cli.ts" },
+  "scripts": {
+    "analyze": "bun src/cli.ts analyze",
+    "reference": "bun src/cli.ts reference",
+    "library": "bun src/cli.ts library",
+    "build:music": ".venv/bin/python scripts/analyze_music.py library/music-sources.local.tsv ../../apps/web/public/assets/music ../../apps/web/public/assets/music/manifest.json",
+    "build:sfx": ".venv/bin/python scripts/build_sfx_manifest.py library/sfx-sources.local.tsv ../../apps/web/public/assets/sfx ../../apps/web/public/assets/sfx/manifest.json",
+    "setup": "bash scripts/setup.sh",
+    "typecheck": "tsc --noEmit"
+  }
+}

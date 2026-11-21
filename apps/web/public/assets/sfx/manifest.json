@@ -1,0 +1,506 @@
+[
+ {
+  "id": "boom-cinematic",
+  "name": "Cinematic Boom",
+  "url": "/assets/sfx/boom-cinematic.mp3",
+  "durationSec": 1.97,
+  "tags": [
+   "boom",
+   "impact",
+   "reveal",
+   "hit",
+   "drop"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "boom-dramatic",
+  "name": "Dramatic Impact Boom",
+  "url": "/assets/sfx/boom-dramatic.mp3",
+  "durationSec": 3.341,
+  "tags": [
+   "boom",
+   "impact",
+   "dramatic",
+   "transition",
+   "reveal"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "thud-deep",
+  "name": "Deep Thud",
+  "url": "/assets/sfx/thud-deep.mp3",
+  "durationSec": 4.456,
+  "tags": [
+   "thud",
+   "boom",
+   "impact",
+   "meme",
+   "punchline",
+   "bass"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "thud",
+  "name": "Thud",
+  "url": "/assets/sfx/thud.mp3",
+  "durationSec": 2.765,
+  "tags": [
+   "thud",
+   "impact",
+   "fall",
+   "punchline"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "whoosh",
+  "name": "Simple Whoosh",
+  "url": "/assets/sfx/whoosh.mp3",
+  "durationSec": 0.304,
+  "tags": [
+   "whoosh",
+   "swoosh",
+   "transition",
+   "fast"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "whoosh-epic",
+  "name": "Epic Whoosh",
+  "url": "/assets/sfx/whoosh-epic.mp3",
+  "durationSec": 1.894,
+  "tags": [
+   "whoosh",
+   "transition",
+   "epic",
+   "swoosh"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "whoosh-cinematic",
+  "name": "Cinematic Whoosh",
+  "url": "/assets/sfx/whoosh-cinematic.mp3",
+  "durationSec": 1.679,
+  "tags": [
+   "whoosh",
+   "transition",
+   "cinematic"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "record-scratch",
+  "name": "Record Scratch",
+  "url": "/assets/sfx/record-scratch.mp3",
+  "durationSec": 1.389,
+  "tags": [
+   "scratch",
+   "record",
+   "stop",
+   "freeze",
+   "fail",
+   "wait-what"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "dj-scratch",
+  "name": "DJ Scratch",
+  "url": "/assets/sfx/dj-scratch.mp3",
+  "durationSec": 1.791,
+  "tags": [
+   "scratch",
+   "dj",
+   "transition",
+   "hype"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "ding",
+  "name": "Ding",
+  "url": "/assets/sfx/ding.mp3",
+  "durationSec": 1.337,
+  "tags": [
+   "ding",
+   "bell",
+   "point",
+   "success",
+   "correct",
+   "idea"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "ding-bright",
+  "name": "Bright Ding",
+  "url": "/assets/sfx/ding-bright.mp3",
+  "durationSec": 0.56,
+  "tags": [
+   "ding",
+   "notification",
+   "point",
+   "success"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "oof",
+  "name": "Oof",
+  "url": "/assets/sfx/oof.mp3",
+  "durationSec": 0.445,
+  "tags": [
+   "oof",
+   "ouch",
+   "hurt",
+   "fail",
+   "bruh",
+   "meme"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "oof-2",
+  "name": "Oof 2",
+  "url": "/assets/sfx/oof-2.mp3",
+  "durationSec": 0.607,
+  "tags": [
+   "oof",
+   "ouch",
+   "fail",
+   "bruh",
+   "meme"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "sad-trombone",
+  "name": "Sad Trombone",
+  "url": "/assets/sfx/sad-trombone.mp3",
+  "durationSec": 4.661,
+  "tags": [
+   "fail",
+   "sad",
+   "trombone",
+   "wah-wah",
+   "loser",
+   "meme"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "fail-trumpet",
+  "name": "Fail Trumpet",
+  "url": "/assets/sfx/fail-trumpet.mp3",
+  "durationSec": 1.265,
+  "tags": [
+   "fail",
+   "sad",
+   "trumpet",
+   "meme"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "laugh-crowd",
+  "name": "Crowd Laughing",
+  "url": "/assets/sfx/laugh-crowd.mp3",
+  "durationSec": 2.407,
+  "tags": [
+   "laugh",
+   "crowd",
+   "funny",
+   "sitcom",
+   "joke"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "laugh-crowd-long",
+  "name": "Laughing Crowd",
+  "url": "/assets/sfx/laugh-crowd-long.mp3",
+  "durationSec": 4.884,
+  "tags": [
+   "laugh",
+   "crowd",
+   "funny",
+   "sitcom"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "laugh-evil",
+  "name": "Evil Laugh",
+  "url": "/assets/sfx/laugh-evil.mp3",
+  "durationSec": 2.699,
+  "tags": [
+   "laugh",
+   "evil",
+   "villain",
+   "plan",
+   "funny"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "airhorn",
+  "name": "DJ Airhorn",
+  "url": "/assets/sfx/airhorn.mp3",
+  "durationSec": 1.908,
+  "tags": [
+   "airhorn",
+   "horn",
+   "hype",
+   "mlg",
+   "win",
+   "meme"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "air-horn",
+  "name": "Air Horn",
+  "url": "/assets/sfx/air-horn.mp3",
+  "durationSec": 1.554,
+  "tags": [
+   "airhorn",
+   "horn",
+   "hype",
+   "alert"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "riser",
+  "name": "Cinematic Riser",
+  "url": "/assets/sfx/riser.mp3",
+  "durationSec": 3.415,
+  "tags": [
+   "riser",
+   "build-up",
+   "tension",
+   "before-drop",
+   "transition"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "riser-swoosh",
+  "name": "Swoosh Riser",
+  "url": "/assets/sfx/riser-swoosh.mp3",
+  "durationSec": 5.99,
+  "tags": [
+   "riser",
+   "whoosh",
+   "build-up",
+   "transition"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "camera-shutter",
+  "name": "Camera Shutter",
+  "url": "/assets/sfx/camera-shutter.mp3",
+  "durationSec": 0.283,
+  "tags": [
+   "camera",
+   "shutter",
+   "snapshot",
+   "freeze-frame",
+   "click"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "pop",
+  "name": "Pop",
+  "url": "/assets/sfx/pop.mp3",
+  "durationSec": 0.14,
+  "tags": [
+   "pop",
+   "text-in",
+   "appear",
+   "bubble",
+   "cute"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "bubble-pop",
+  "name": "Bubble Pop",
+  "url": "/assets/sfx/bubble-pop.mp3",
+  "durationSec": 0.423,
+  "tags": [
+   "pop",
+   "bubble",
+   "appear",
+   "emoji"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "glitch",
+  "name": "Glitch",
+  "url": "/assets/sfx/glitch.mp3",
+  "durationSec": 2.534,
+  "tags": [
+   "glitch",
+   "digital",
+   "transition",
+   "error",
+   "distort"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "glitch-noise",
+  "name": "Glitch Noise",
+  "url": "/assets/sfx/glitch-noise.mp3",
+  "durationSec": 3.489,
+  "tags": [
+   "glitch",
+   "noise",
+   "static",
+   "transition"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "cash-register",
+  "name": "Cash Register Ka-ching",
+  "url": "/assets/sfx/cash-register.mp3",
+  "durationSec": 0.962,
+  "tags": [
+   "cash",
+   "money",
+   "ka-ching",
+   "profit",
+   "win",
+   "sale"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "wow",
+  "name": "Wow",
+  "url": "/assets/sfx/wow.mp3",
+  "durationSec": 1.842,
+  "tags": [
+   "wow",
+   "ooh",
+   "amazed",
+   "reaction",
+   "crowd"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "kids-woah",
+  "name": "Kids Woah",
+  "url": "/assets/sfx/kids-woah.mp3",
+  "durationSec": 3.891,
+  "tags": [
+   "woah",
+   "ooh",
+   "amazed",
+   "crowd",
+   "reaction"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "applause",
+  "name": "Applause and Cheers",
+  "url": "/assets/sfx/applause.mp3",
+  "durationSec": 5.862,
+  "tags": [
+   "applause",
+   "cheer",
+   "crowd",
+   "win",
+   "clap"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "boing",
+  "name": "Cartoon Spring Boing",
+  "url": "/assets/sfx/boing.mp3",
+  "durationSec": 1.25,
+  "tags": [
+   "boing",
+   "spring",
+   "cartoon",
+   "funny",
+   "bounce"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "wrong-buzzer",
+  "name": "Incorrect Buzzer",
+  "url": "/assets/sfx/wrong-buzzer.mp3",
+  "durationSec": 2.019,
+  "tags": [
+   "buzzer",
+   "wrong",
+   "error",
+   "fail",
+   "nope"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ },
+ {
+  "id": "error-8bit",
+  "name": "8-Bit Error",
+  "url": "/assets/sfx/error-8bit.mp3",
+  "durationSec": 0.326,
+  "tags": [
+   "error",
+   "8-bit",
+   "game",
+   "fail",
+   "retro"
+  ],
+  "source": "library",
+  "license": "Royalty-free library licence: free commercial use, no attribution required"
+ }
+]

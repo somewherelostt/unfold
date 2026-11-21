@@ -1,0 +1,10 @@
+{
+  "name": "unfold",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "typecheck": "pnpm -r exec tsc --noEmit"
+  },
+  "packageManager": "pnpm@12.14.0"
+}

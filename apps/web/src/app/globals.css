@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Brand tokens → utility classes (bg-surface, text-ink, bg-flare, font-display, rounded-lg …). See brand/BRAND.md */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-flare: var(--flare);
+  --color-flare-ink: var(--flare-ink);
+  --color-violet: var(--violet);
+  --color-caption-yellow: var(--caption-yellow);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-track-video: var(--track-video);
+  --color-track-captions: var(--track-captions);
+  --color-track-music: var(--track-music);
+  --color-track-beat: var(--track-beat);
+  --color-track-sfx: var(--track-sfx);
+  --color-track-transition: var(--track-transition);
+  --color-track-zoom: var(--track-zoom);
+
+  --font-display: var(--font-display-face), var(--font-display);
+  --font-sans: var(--font-ui), var(--font-sans);
+  --font-mono: var(--font-ui-mono), var(--font-mono);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-float: var(--shadow-float);
+}
+
+html { background: var(--bg); }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui), var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.tabular { font-variant-numeric: tabular-nums; }
