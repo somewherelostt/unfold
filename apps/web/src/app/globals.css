@@ -3,9 +3,27 @@
 
 /* Brand tokens → utility classes (bg-surface, text-ink, bg-flare, font-display, rounded-lg …). See brand/BRAND.md */
 @theme inline {
+  /* surfaces + text tiers */
   --color-bg: var(--bg);
-  --color-surface: var(--surface);
+  --color-surface: var(--surface-1);
+  --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-agent: var(--agent);
+  --color-caption: var(--caption);
+  --color-primary-btn: var(--primary-btn);
+  --color-primary-btn-ink: var(--primary-btn-ink);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  /* legacy names */
   --color-border: var(--border);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
@@ -13,31 +31,40 @@
   --color-flare-ink: var(--flare-ink);
   --color-violet: var(--violet);
   --color-caption-yellow: var(--caption-yellow);
-  --color-success: var(--success);
-  --color-danger: var(--danger);
+  /* timeline */
   --color-track-video: var(--track-video);
+  --color-track-video-edge: var(--track-video-edge);
   --color-track-captions: var(--track-captions);
+  --color-track-captions-ink: var(--track-captions-ink);
   --color-track-music: var(--track-music);
-  --color-track-beat: var(--track-beat);
+  --color-track-music-wave: var(--track-music-wave);
+  --color-track-beat: var(--beat);
   --color-track-sfx: var(--track-sfx);
+  --color-track-sfx-ink: var(--track-sfx-ink);
   --color-track-transition: var(--track-transition);
+  --color-track-transition-ink: var(--track-transition-ink);
   --color-track-zoom: var(--track-zoom);
+  --color-track-zoom-ink: var(--track-zoom-ink);
 
-  --font-display: var(--font-display-face), var(--font-display);
-  --font-sans: var(--font-ui), var(--font-sans);
-  --font-mono: var(--font-ui-mono), var(--font-mono);
+  --font-display: var(--font-serif), ui-serif, Georgia, serif;
+  --font-wordmark: var(--font-display-face), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ui-mono), ui-monospace, monospace;
 
+  --radius-xs: var(--radius-xs);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --shadow-raised: var(--shadow-raised);
   --shadow-float: var(--shadow-float);
+  --ease-unfold: var(--ease);
 }
 
 html { background: var(--bg); }
 body {
   background: var(--bg);
-  color: var(--ink);
+  color: var(--text-1);
   font-family: var(--font-ui), var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }

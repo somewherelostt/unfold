@@ -1,70 +1,106 @@
-/* Unfold design tokens. Import once at the app root. */
+/* Unfold design tokens. Dark-first; light theme via [data-theme="light"]. See brand/BRAND.md. */
 :root {
-  --bg: #FAFAF7;
-  --surface: #FFFFFF;
-  --surface-2: #F3F2EE;
-  --border: #E6E4DE;
-  --ink: #0B0B0C;
-  --ink-muted: #6A6A70;
-  --flare: #FF5A1F;
-  --flare-ink: #FFFFFF;
-  --violet: #7B5CFF;
-  --caption-yellow: #FFE14D;
-  --success: #18B26B;
-  --danger: #E5484D;
+  color-scheme: dark;
 
-  --track-video: #3A3A40;
-  --track-captions: #7B5CFF;
-  --track-music: #2F80ED;
-  --track-beat: #9CC3FF;
-  --track-sfx: #FF4FA3;
-  --track-transition: #FFB020;
-  --track-zoom: #18B26B;
+  /* Surfaces */
+  --bg: #08080A;
+  --surface-1: #101012;
+  --surface-2: #17171A;
+  --surface-3: #1F1F23;
+  --hairline: rgb(255 255 255 / .07);
+  --hairline-strong: rgb(255 255 255 / .12);
+  --scrim: rgb(0 0 0 / .5);
 
+  /* Text tiers */
+  --text-1: #EDEDEF;
+  --text-2: #A1A1A8;
+  --text-3: #6E6E76;
+  --text-4: #4A4A52;
+
+  /* Signals (use sparingly) */
+  --accent: #FF5A1F;
+  --accent-ink: #0A0A0B;
+  --agent: #8F75FF;
+  --caption: #FFE14D;
+  --primary-btn: #F2F2F2;
+  --primary-btn-ink: #0A0A0B;
+  --success: #2BD27F;
+  --danger: #FF6369;
+
+  /* Timeline tracks: fill / edge-or-content */
+  --track-video: #2A62B8;      --track-video-edge: #4C8DF0;
+  --track-music: #17624A;      --track-music-wave: #3CDDA7;
+  --track-captions: #4E3FA6;   --track-captions-ink: #D9D2FF;
+  --track-sfx: #8A2E5E;        --track-sfx-ink: #FF7AC0;
+  --track-transition: #8A5A12; --track-transition-ink: #FFB020;
+  --track-zoom: #1E5E3A;       --track-zoom-ink: #45D38A;
+  --beat: rgb(255 255 255 / .18);
+  --downbeat: rgb(255 255 255 / .32);
+
+  /* Depth */
+  --shadow-raised: 0 0 0 1px rgb(255 255 255 / .05), inset 0 1px 0 rgb(255 255 255 / .04), 0 16px 48px -12px rgb(0 0 0 / .6);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / .06), 0 24px 64px -16px rgb(0 0 0 / .7);
+  --glass-bg: rgb(8 8 10 / .72);
+  --glass-filter: blur(24px) saturate(1.5);
+  --glow-hero: radial-gradient(60% 50% at 50% 35%, rgb(30 44 70 / .45), transparent 70%);
   --gradient-brand: linear-gradient(135deg, #FF5A1F 0%, #FF4FA3 50%, #7B5CFF 100%);
 
-  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
+  /* Type */
+  --font-display: var(--font-serif), ui-serif, Georgia, serif;          /* headlines, weight 400 */
+  --font-wordmark: var(--font-display-face), ui-sans-serif, sans-serif; /* logo only */
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-ui-mono), ui-monospace, SFMono-Regular, monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* Shape */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
   --radius-xl: 24px;
   --radius-full: 9999px;
 
-  --shadow-float: 0 1px 2px rgb(0 0 0 / .06), 0 8px 24px rgb(0 0 0 / .06);
-  --ease-out: cubic-bezier(.2, .8, .2, 1);
-  --dur-fast: 120ms;
-  --dur-panel: 240ms;
+  /* Motion */
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --dur-pop: 180ms;
+  --dur-panel: 280ms;
+  --dur-reveal: 380ms;
+
+  /* Legacy aliases (older components) */
+  --surface: var(--surface-1);
+  --border: var(--hairline-strong);
+  --ink: var(--text-1);
+  --ink-muted: var(--text-2);
+  --flare: var(--accent);
+  --flare-ink: var(--accent-ink);
+  --violet: var(--agent);
+  --caption-yellow: var(--caption);
+  --track-beat: var(--beat);
+  --radius-sm-legacy: 8px;
+  --dur-fast: var(--dur-pop);
+  --ease-out: var(--ease);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0C0C0E;
-    --surface: #151518;
-    --surface-2: #1D1D21;
-    --border: #2A2A30;
-    --ink: #F5F5F2;
-    --ink-muted: #9A9AA3;
-    --flare: #FF6A33;
-    --flare-ink: #0C0C0E;
-    --violet: #8F75FF;
-    --success: #2BD27F;
-    --danger: #FF6369;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #0C0C0E;
-  --surface: #151518;
-  --surface-2: #1D1D21;
-  --border: #2A2A30;
-  --ink: #F5F5F2;
-  --ink-muted: #9A9AA3;
-  --flare: #FF6A33;
-  --flare-ink: #0C0C0E;
-  --violet: #8F75FF;
-  --success: #2BD27F;
-  --danger: #FF6369;
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAFAF8;
+  --surface-1: #FFFFFF;
+  --surface-2: #F4F4F1;
+  --surface-3: #ECECE8;
+  --hairline: rgb(10 10 12 / .08);
+  --hairline-strong: rgb(10 10 12 / .14);
+  --scrim: rgb(10 10 12 / .35);
+  --text-1: #0B0B0C;
+  --text-2: #55555C;
+  --text-3: #85858C;
+  --text-4: #B4B4BA;
+  --accent: #F04E14;
+  --agent: #6E4FF0;
+  --primary-btn: #0B0B0C;
+  --primary-btn-ink: #FFFFFF;
+  --beat: rgb(10 10 12 / .14);
+  --downbeat: rgb(10 10 12 / .26);
+  --shadow-raised: 0 0 0 1px rgb(10 10 12 / .06), 0 1px 2px rgb(10 10 12 / .04), 0 12px 32px -12px rgb(10 10 12 / .12);
+  --shadow-float: 0 0 0 1px rgb(10 10 12 / .06), 0 24px 64px -16px rgb(10 10 12 / .18);
+  --glass-bg: rgb(250 250 248 / .75);
+  --glow-hero: radial-gradient(60% 50% at 50% 35%, rgb(255 90 31 / .08), transparent 70%);
 }
