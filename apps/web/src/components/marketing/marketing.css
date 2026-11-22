@@ -40,9 +40,6 @@
 .mk-flow-link { display: inline-flex; align-items: center; gap: 24px; margin-top: 32px; padding-bottom: 8px; border-bottom: 1px solid #55555c; font-size: 14px; color: #ededf0; transition: border-color .2s, gap .2s; }
 .mk-flow-link:hover { gap: 32px; border-color: #ededf0; }
 .mk-flow-link span { font-size: 20px; line-height: 1; }
-.mk-flow-powered { display: flex; align-items: center; gap: 12px; margin-top: 52px; color: #a1a1a8; font-size: 12px; line-height: 1.7; }
-.mk-flow-powered > img { flex-shrink: 0; }
-.mk-flow-powered span span { color: #6e6e76; }
 .mk-flow-product { min-width: 0; }
 .mk-flow-window { overflow: hidden; border: 1px solid #29292d; border-radius: 20px; background: #111113; box-shadow: 0 32px 96px -36px #000; }
 .mk-flow-toolbar { height: 52px; display: flex; justify-content: space-between; align-items: center; padding-inline: 20px; border-bottom: 1px solid #ffffff0d; font-size: 12px; color: #a1a1a8; }
@@ -78,7 +75,6 @@
 @media (max-width: 639px) {
   .mk-flow-section { padding-block: 80px; }
   .mk-flow-layout { gap: 48px; }
-  .mk-flow-powered { margin-top: 32px; }
   .mk-flow-body { display: block; padding: 24px 48px 112px; }
   .mk-flow-chat { position: absolute; right: 14px; bottom: 18px; width: 72%; padding: 14px; border: 1px solid #ffffff14; border-radius: 12px; background: #18181bef; backdrop-filter: blur(16px); }
   .mk-flow-user { display: inline-block; margin-left: 0; padding: 7px 10px; border-radius: 8px; font-size: 12px; }
@@ -108,6 +104,11 @@
 .mk-hero-title { font-family: var(--font-sans); font-weight: 500; letter-spacing: -0.035em; color: var(--text-1); font-size: 40px; line-height: 1.08; text-wrap: balance; }
 @media (min-width: 640px) { .mk-hero-title { font-size: 54px; } }
 @media (min-width: 1024px) { .mk-hero-title { font-size: 68px; line-height: 1.05; } }
+.mk-hero-title-short { font-size: clamp(30px, 8.6vw, 40px); line-height: 1.12; }
+.mk-hero-title-short > .mk-word { display: block; white-space: nowrap; }
+.mk-hero-title-short > .mk-word + .mk-word { margin-top: .1em; }
+@media (min-width: 640px) { .mk-hero-title-short { font-size: 56px; } }
+@media (min-width: 1024px) { .mk-hero-title-short { font-size: 72px; } }
 /* Inline media chips inside the headline. */
 .mk-chip-media { display: inline-block; position: relative; width: 1.02em; height: 1.02em; border-radius: .19em; overflow: hidden; vertical-align: -0.14em; margin-inline: .06em; background: #0B0B0C; box-shadow: 0 6px 16px -6px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(255 255 255 / .08); }
 
@@ -136,6 +137,12 @@
 .mk-cap-hot { color: #FFE14D; }
 .mk-cap-box { font-family: var(--font-wordmark); font-weight: 800; text-transform: uppercase; line-height: 1; }
 .mk-cap-clean { font-weight: 600; color: #fff; text-shadow: 0 2px 14px rgb(0 0 0 / .75); }
+.mk-cap-focus { display: flex; flex-wrap: wrap; justify-content: center; column-gap: .12em; row-gap: .08em; font-family: var(--font-sans); font-weight: 650; line-height: 1.12; letter-spacing: -.035em; color: #fff; text-shadow: 0 2px 8px #000a; }
+.mk-cap-focus > span { display: inline-block; padding: .06em .14em; }
+.mk-cap-focus > .is-emphasized { border-radius: .16em; background: #c4e0ff; color: #111c2b; text-shadow: none; box-shadow: 0 2px 12px #0002; }
+.mk-flow-captions-focus { top: auto; bottom: 24%; inset-inline: 10px; }
+.mk-flow-caption-build { animation: mk-caption-build 480ms var(--ease) both; }
+@keyframes mk-caption-build { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
 
 /* Reveal for UI crops (not headings): fade + 8px rise + blur 4px → 0, 380ms, staggered by --d. */
 .mk-reveal { opacity: 0; transform: translateY(8px); filter: blur(4px); transition: opacity var(--dur-reveal) var(--ease), transform var(--dur-reveal) var(--ease), filter var(--dur-reveal) var(--ease); transition-delay: var(--d, 0ms); }

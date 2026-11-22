@@ -1,5 +1,5 @@
 /** Burned-in caption looks for the example clips. Fixed colours: they always sit on footage. */
-export type CaptionStyle = "pop" | "box" | "clean" | "chaos";
+export type CaptionStyle = "pop" | "box" | "clean" | "chaos" | "focus";
 
 export function Caption({
   words,
@@ -22,6 +22,16 @@ export function Caption({
     if (lit !== undefined) return i === lit ? "#FFE14D" : i < lit ? "#fff" : "rgb(255 255 255 / .55)";
     return hot.includes(i) ? "#FFE14D" : "#fff";
   };
+
+  if (style === "focus") {
+    return (
+      <div className={`mk-cap-focus ${className}`} style={{ fontSize: size * 0.9 }}>
+        {words.map((w, i) => (
+          <span key={i} className={hot.includes(i) || i === lit ? "is-emphasized" : ""}>{w}</span>
+        ))}
+      </div>
+    );
+  }
 
   if (style === "box") {
     return (

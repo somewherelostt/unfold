@@ -1,0 +1,22 @@
+{
+  "source_url": "https://www.pexels.com/video/a-man-talking-7261920/",
+  "license_url": "https://www.pexels.com/license/",
+  "license_checked": "2026-11-22",
+  "attribution_required": false,
+  "source_resolution": [
+    2160,
+    3840
+  ],
+  "download_resolution": [
+    1080,
+    1920
+  ],
+  "loop_seconds": 8,
+  "source_start_seconds": 4,
+  "modifications": [
+    "trim",
+    "exposure adjustment",
+    "muted web loop"
+  ],
+  "presentation": "Illustrative caption-style preview; no creator endorsement or performance claim."
+}

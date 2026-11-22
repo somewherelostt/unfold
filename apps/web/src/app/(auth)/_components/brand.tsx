@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 
-/** Mark + lowercase wordmark. Wordmark is live text so it follows the ink token in dark mode. */
+/** Shared vector wordmark follows the page's ink color. */
 export function Logo({ href = "/" }: { href?: string }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2" aria-label="Unfold home">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-mark.svg" alt="" width={28} height={28} className="h-7 w-7" />
-      <span className="font-wordmark text-[26px] font-bold leading-none tracking-[-0.03em] text-text-1">unfold</span>
+    <Link href={href} className="inline-flex items-center text-text-1" aria-label="Unfold home">
+      <BrandLogo width={148} height={36} />
     </Link>
   );
 }

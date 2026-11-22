@@ -7,7 +7,7 @@ import { useInView, useMotionScope, useParallax, useTicker } from "./hooks";
 import { PreviewVideo } from "./Preview";
 import { CLIPS, type Clip } from "./showcase-clips";
 
-const TABS: Clip[] = [CLIPS.gaming, CLIPS.vlog, CLIPS.podcast, CLIPS.food];
+const TABS: Clip[] = [CLIPS.gaming, CLIPS.creator, CLIPS.podcast, CLIPS.food];
 
 /**
  * Raw → edit showcase: a dark app frame inside a light grey card. Tabs switch the example; while the

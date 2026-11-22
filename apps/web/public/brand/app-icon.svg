@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><title>Unfold</title><rect width="128" height="128" rx="29" fill="#181818"/><g transform="translate(16 14) scale(1.5)">
+  <path d="M8 12h14v24.9l10 5.8 10-5.8V24l14-8.1V45L32 58.9 8 45V12Z" fill="#FF5A1F"/>
+  <path d="m27 12 14-8.1L56 12l-14 8.1L27 12Z" fill="#FF5A1F"/>
+</g></svg>

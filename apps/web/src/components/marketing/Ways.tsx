@@ -74,7 +74,6 @@ export function Ways() {
                   </div>
                 ))}
               </div>
-              <p className="mk-label mt-5">Illustrative previews</p>
             </div>
           </div>
         </div>
@@ -154,7 +153,7 @@ function RemixVisual({ active }: { active: boolean }) {
   const s = useTimedProgress(2, live, 700);
   return (
     <div ref={ref} data-live={live} className="mk-motion flex h-full items-center justify-center gap-4 sm:gap-6">
-      <Phone active={active} clip={CLIPS.vlog} size={s >= 2 ? 24 : 16} className="w-[36%] max-w-[160px]" />
+      <Phone active={active} clip={CLIPS.creator} size={s >= 2 ? 24 : 16} className="w-[36%] max-w-[160px]" />
       <div className="min-w-0 flex-1 space-y-2.5 text-[12px] sm:text-[13px]">
         <div className="ml-auto w-max max-w-full rounded-[12px] rounded-br-[4px] bg-surface-2 px-3 py-2 text-text-1 mk-hair">Bigger captions</div>
         {s >= 1 && <p className="text-[12px]">{s < 2 ? <span className="mk-shimmer-agent">Working…</span> : <span className="text-text-3">Updated the captions</span>}</p>}

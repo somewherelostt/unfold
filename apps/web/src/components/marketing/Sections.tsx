@@ -14,10 +14,10 @@ import { CLIPS } from "./showcase-clips";
 
 const FAQS: [string, string][] = [
   ["What kind of clips work?", "Anything with a moment worth watching: gameplay, vlogs, talking heads, podcasts, reactions. Vertical or horizontal, up to about three minutes. Unfold exports 9:16."],
-  ["How does copying a style work?", "Add an inspiration video by link or file. Unfold reads its pacing, captions, zooms, transitions and music energy, then brings that direction to your clip."],
+  ["How does an inspiration video help?", "Add a link or file. Unfold uses its pacing and visible caption treatment as a reference, then adapts the edit to your footage and brief."],
   ["Where does the music come from?", "A library of royalty-free tracks tagged by mood and BPM, so the agent can match the energy and cut on the beat."],
   ["Can I change what the agent did?", "Yes. Ask in chat for faster cuts, fewer sounds or bigger captions. Unfold reworks the plan, and you can keep shaping it in the editor."],
-  ["What happens after I upload?", "Unfold analyses your footage, then Kimi K3.1 Pro on Cerebras plans the edit through OpenClaw. Preview it, ask for changes and export an MP4 when it feels right. Timing depends on your clip and the work requested."],
+  ["What happens after I upload?", "Unfold analyses your footage and plans the edit. Preview it, ask for changes and export an MP4 when it feels right."],
   ["Is this a template?", "No. Every edit is planned from your clip: where the hook is, where the beat drops, which words to light up. Two clips with the same preset get different edits."],
 ];
 
@@ -54,7 +54,7 @@ export function Faq() {
 const EDGE = [
   { clip: CLIPS.food, cls: "left-[3%] top-[8%]", w: 140, r: -8, from: [-1, 0], depth: 24 },
   { clip: CLIPS.parkour, cls: "left-[11%] bottom-[6%]", w: 120, r: 6, from: [-1, 0], depth: 14 },
-  { clip: CLIPS.vlog, cls: "right-[4%] top-[6%]", w: 136, r: 8, from: [1, 0], depth: 28 },
+  { clip: CLIPS.creator, cls: "right-[4%] top-[6%]", w: 136, r: 8, from: [1, 0], depth: 28 },
   { clip: CLIPS.skate, cls: "right-[12%] bottom-[8%]", w: 118, r: -6, from: [1, 0], depth: 12 },
 ];
 
@@ -125,9 +125,8 @@ export function FinalCta() {
       </div>
       <div className="mk-container relative flex flex-col items-center text-center">
         <h2 className="mk-hero-title max-w-[720px]">
-          Your next post starts with one <em>clip.</em>
+          Make something worth <em>watching.</em>
         </h2>
-        <p className="mt-5 text-[17px] text-text-2">No editing experience needed.</p>
         <PromptShell className="mt-8 max-w-[640px]" showPresets={false} />
         <ButtonLink href="/app" variant="primary" size="lg" className="mt-6">
           Start editing
@@ -147,7 +146,7 @@ export function Footer() {
         <div>
           <Wordmark />
           <p className="mt-4 max-w-[320px] text-[22px] font-medium leading-7 tracking-[-0.02em] text-text-1">Raw footage in. Viral edit out.</p>
-          <p className="mt-3 text-[12px] text-text-3">Built with Kimi K3.1 Pro on Cerebras · OpenClaw. #KimiOnCerebras</p>
+          <p className="mt-3 text-[12px] text-text-3">Powered by Kimi K3.1 Pro on Cerebras · OpenClaw</p>
         </div>
         <FooterCol title="Product" links={[["Features", "#styles"], ["How it works", "#ways"], ["Workflow", "#speed"], ["FAQ", "#faq"]]} />
         <FooterCol title="Start" links={[["Start editing", "/app"], ["Sign in", "/login"]]} />

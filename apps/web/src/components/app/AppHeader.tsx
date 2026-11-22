@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconSettings } from "@/components/ui/icons";
+import { BrandLogo, BrandMark } from "@/components/ui/BrandLogo";
 
 /** 56px frosted app header: wordmark left, optional centre, settings right. */
 export function AppHeader({ children }: { children?: ReactNode }) {
@@ -23,9 +24,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
 export function Wordmark({ href = "/app", size = "md" }: { href?: string; size?: "sm" | "md" }) {
   return (
     <Link href={href} className="chrome flex items-center gap-2 text-text-1" aria-label="Unfold home">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-mark.svg" alt="" width={size === "sm" ? 20 : 24} height={size === "sm" ? 18 : 21} />
-      {size === "md" && <span className="font-wordmark text-[19px] font-extrabold tracking-[-0.03em]">unfold</span>}
+      {size === "sm" ? <BrandMark width={24} height={24} /> : <BrandLogo width={112} height={27} />}
     </Link>
   );
 }

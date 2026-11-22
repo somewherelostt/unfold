@@ -31,7 +31,7 @@ function CaptionsDemo() {
   const tiles: { frame: string; words: string[]; style: "pop" | "box" | "clean"; name: string }[] = [
     { frame: "/landing/hero-2.jpg", words: ["wait", "for", "the", "end"], style: "pop", name: "Pop" },
     { frame: "/landing/podcast.jpg", words: ["he", "really", "said", "that"], style: "box", name: "Boxed" },
-    { frame: "/landing/vlog.jpg", words: ["nobody", "told", "me", "this"], style: "clean", name: "Clean" },
+    { frame: "/landing/creator.jpg", words: ["Make", "every", "second", "count"], style: "clean", name: "Clean" },
   ];
   return (
     <div ref={ref} className="mk-motion" data-live={live}>
@@ -252,12 +252,12 @@ function ChatDemo() {
 type Feature = { title: string; body: string; demo: ReactNode };
 const FOUR: Feature[] = [
   { title: "Captions that pop", body: "Word by word, timed to your voice, key words lit.", demo: <CaptionsDemo /> },
-  { title: "Music on the beat", body: "A track that fits the energy, every cut on the beat.", demo: <MusicDemo /> },
+  { title: "Music that fits", body: "A supporting track when it helps, with beat alignment when you want it.", demo: <MusicDemo /> },
   { title: "Transitions that hit", body: "Whip pans, punch zooms and flashes where the action turns.", demo: <TransitionsDemo /> },
   { title: "Sound effects that land", body: "Booms and dings on the moments that earn them.", demo: <SfxDemo /> },
 ];
 const TWO: Feature[] = [
-  { title: "Copy any style", body: "Paste a link to a video you like. Unfold reads its pacing, captions, zooms and music, then edits yours the same way.", demo: <StyleDemo /> },
+  { title: "Follow your inspiration", body: "Add a video you like. Borrow its pacing and visible caption treatment, adapted to your own footage.", demo: <StyleDemo /> },
   { title: "Change anything by chat", body: "“Faster cuts.” “Bigger captions.” Say what you want to change and Unfold reworks the edit.", demo: <ChatDemo /> },
 ];
 
@@ -271,7 +271,7 @@ function ArrowButton({ href = "/app" }: { href?: string }) {
 
 function Card({ f, big }: { f: Feature; big?: boolean }) {
   return (
-    <div className={`mk-card flex flex-col p-5 sm:p-6 ${big ? "lg:p-8" : ""}`}>
+    <div className={`mk-card flex min-w-0 flex-col p-5 sm:p-6 ${big ? "lg:p-8" : ""}`}>
       <div className={`flex items-start justify-between gap-4 ${big ? "" : "xl:min-h-[94px]"}`}>
         <h3 className={`font-medium tracking-[-0.03em] text-text-1 ${big ? "text-[28px] leading-[1.1] lg:text-[32px]" : "text-[28px] leading-[1.1]"}`}>{f.title}</h3>
         <ArrowButton />
@@ -292,7 +292,6 @@ export function Features() {
             <h2 className="mk-title mt-3 max-w-[640px]">
               Everything a viral edit needs, <em>done</em> for you.
             </h2>
-            <p className="mt-4 text-[15px] leading-6 text-text-2">One polished edit, with every layer working together. Illustrative previews below.</p>
           </div>
           <ButtonLink href="/app" variant="secondary" size="lg" className="self-start md:self-auto">
             Start editing <IconArrowRight size={15} />

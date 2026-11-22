@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { BrandLogo, BrandMark } from "@/components/ui/BrandLogo";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -14,9 +15,7 @@ export const fmtTime = (s: number) => {
 export function Logo({ href = "/app", wordmark = true }: { href?: string; wordmark?: boolean }) {
   return (
     <Link href={href} className="chrome flex items-center gap-2 text-ink" aria-label="Unfold home">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-mark.svg" alt="" width={24} height={21} />
-      {wordmark && <span className="font-display text-[19px] font-extrabold tracking-[-0.03em]">unfold</span>}
+      {wordmark ? <BrandLogo width={112} height={27} /> : <BrandMark width={24} height={24} />}
     </Link>
   );
 }

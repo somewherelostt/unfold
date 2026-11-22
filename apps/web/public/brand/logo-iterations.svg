@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1100"><rect width="1280" height="1100" fill="#FCFAF5"/><text x="48" y="64" font-family="Arial,sans-serif" font-size="17" letter-spacing="3" fill="#77736B">UNFOLD / IDENTITY EXPLORATION</text><text x="48" y="116" font-family="Arial,sans-serif" font-size="35" font-weight="bold" fill="#181818">Four rounds. One open idea.</text><g transform="translate(48 164)"><rect width="580" height="410" rx="18" fill="#F0EDE6"/><text x="28" y="42" fill="#77736B" font-size="13" font-family="Arial,sans-serif" letter-spacing="2">01 / OPEN FRAMES</text><g transform="translate(208 84) scale(2.5)">
+  <path d="M10 12h29v13H23v26H10V12Z" fill="#FF5A1F"/>
+  <path d="M28 29h26v13H41v13H28V29Z" fill="#FF5A1F"/>
+</g><text x="28" y="374" fill="#56534D" font-size="17" font-family="Arial,sans-serif">A frame becoming an edit.</text></g><g transform="translate(652 164)"><rect width="580" height="410" rx="18" fill="#F0EDE6"/><text x="28" y="42" fill="#77736B" font-size="13" font-family="Arial,sans-serif" letter-spacing="2">02 / FOLDED RIBBON</text><g transform="translate(208 84) scale(2.5)">
+  <path d="M8 12h14v25l10 6 10-6V12h14v33L32 59 8 45V12Z" fill="#FF5A1F"/>
+  <path d="m8 31 14 8v14L8 45V31Z" fill="#B92E09"/>
+  <path d="m42 12 14 8v16l-14-8V12Z" fill="#FF955E"/>
+</g><text x="28" y="374" fill="#56534D" font-size="17" font-family="Arial,sans-serif">A U built from folded film.</text></g><g transform="translate(48 602)"><rect width="580" height="410" rx="18" fill="#F0EDE6"/><text x="28" y="42" fill="#77736B" font-size="13" font-family="Arial,sans-serif" letter-spacing="2">03 / OPEN RIBBON</text><g transform="translate(208 84) scale(2.5)">
+  <path d="M8 10h14v27l10 6 10-6V19l14-8v34L32 59 8 45V10Z" fill="#FF5A1F"/>
+  <path d="m27 10 14-8 15 9-14 8-15-9Z" fill="#FF5A1F"/>
+</g><text x="28" y="374" fill="#56534D" font-size="17" font-family="Arial,sans-serif">Reduced to a single silhouette.</text></g><g transform="translate(652 602)"><rect width="580" height="410" rx="18" fill="#181818"/><text x="28" y="42" fill="#aaa59b" font-size="13" font-family="Arial,sans-serif" letter-spacing="2">04 / UNFOLD</text><g transform="translate(208 84) scale(2.5)">
+  <path d="M8 12h14v24.9l10 5.8 10-5.8V24l14-8.1V45L32 58.9 8 45V12Z" fill="#FF5A1F"/>
+  <path d="m27 12 14-8.1L56 12l-14 8.1L27 12Z" fill="#FF5A1F"/>
+</g><text x="28" y="374" fill="#CFCBC2" font-size="17" font-family="Arial,sans-serif">An open fold. A clearer U.</text></g><text x="48" y="1074" font-family="Arial,sans-serif" font-size="14" fill="#77736B">Original geometry · Flat vector · Built for the small screen</text></svg>
