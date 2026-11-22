@@ -2,25 +2,31 @@
 Description=Unfold durable media worker
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=unfold
 Group=unfold
 WorkingDirectory=/opt/unfold
-EnvironmentFile=/etc/unfold/jobs.env
+EnvironmentFile=/etc/unfold/common.env
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 UMask=0077
-ExecStartPre=/usr/bin/node services/jobs/scripts/recover.ts
-ExecStartPre=/usr/bin/node services/jobs/scripts/health.ts
-ExecStart=/usr/bin/node --import /opt/unfold/packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/worker.ts
-Restart=on-failure
+ExecStartPre=/usr/local/bin/node /opt/unfold/infra/deploy/check-runtime.mjs media
+ExecStartPre=/usr/local/bin/node --import /opt/unfold/packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/recover.ts
+ExecStartPre=/usr/local/bin/node --import /opt/unfold/packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/health.ts
+ExecStart=/usr/local/bin/node --import /opt/unfold/packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/worker.ts
+Restart=always
 RestartSec=10
 KillSignal=SIGTERM
 KillMode=control-group
 SendSIGKILL=yes
 TimeoutStopSec=30
 NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target

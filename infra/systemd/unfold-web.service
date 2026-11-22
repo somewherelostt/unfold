@@ -1,0 +1,30 @@
+[Unit]
+Description=Unfold production web application
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=unfold
+Group=unfold
+WorkingDirectory=/opt/unfold/apps/web
+EnvironmentFile=/etc/unfold/common.env
+EnvironmentFile=/etc/unfold/web.env
+EnvironmentFile=/etc/unfold/publishing.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+UMask=0077
+ExecStartPre=/usr/local/bin/node /opt/unfold/infra/deploy/check-runtime.mjs web
+ExecStart=/usr/local/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=60
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

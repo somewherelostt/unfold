@@ -1,0 +1,30 @@
+[Unit]
+Description=Unfold production publishing scheduler
+Wants=network-online.target
+After=network-online.target unfold-web.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=unfold
+Group=unfold
+WorkingDirectory=/opt/unfold
+EnvironmentFile=/etc/unfold/common.env
+EnvironmentFile=/etc/unfold/publishing.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+UMask=0077
+ExecStartPre=/usr/local/bin/node /opt/unfold/infra/deploy/check-runtime.mjs publishing
+ExecStart=/usr/local/bin/node --import /opt/unfold/packages/video/node_modules/tsx/dist/loader.mjs services/publishing/scripts/worker.mts
+Restart=always
+RestartSec=10
+KillMode=control-group
+# Allow accepted uploads/provider requests to settle before a forced stop.
+TimeoutStopSec=360
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

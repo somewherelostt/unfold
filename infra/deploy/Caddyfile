@@ -1,0 +1,14 @@
+# Install Caddy >=2.10 from its official package repository.
+# Only this hostname is handled; the portfolio's DNS/site stays unchanged.
+unfold.maazx.dev {
+	# The application accepts up to 500 MiB plus multipart form overhead.
+	request_body {
+		max_size 510MiB
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		# Preserve generation/job-event streaming rather than buffering responses.
+		flush_interval -1
+	}
+	# No file_server: private uploads, databases and exports are served by the app's
+	# owner-bound routes. No access log here, avoiding auth/media query-token logs.
+}
