@@ -65,7 +65,7 @@ export class Publisher {
           if (d.activeOperation) this.store.resolveAmbiguous(d.id, claim.token, { postId: cp.postId, permalink: link });
           release("published", { permalink: link }); return;
         }
-        if (d.activeOperation && !cp.containerId) { release("unknown", undefined, { code: "CONTAINER_UNCONFIRMED", message: "The connection ended before Instagram returned a container. Review the account before creating another post.", retryable: false }); return; }
+        if (d.activeOperation && !cp.containerId) { release("unknown", undefined, d.error ?? { code: "CONTAINER_UNCONFIRMED", message: "The connection ended before Instagram returned a container. Review the account before creating another post.", retryable: false }); return; }
         if (!cp.containerId) {
           const checkpoint = await this.mutate(claim, "instagram_container", async (operationId) => {
             let source: JsonObject, staged: Checkpoint = {};
@@ -145,7 +145,7 @@ export class Publisher {
           const account = this.store.account(owner, d.input.accountId); if (account.status !== "disconnected") this.store.putAccount({ ...account, status: "reconnect_required" });
           const accepted = Boolean(current.activeOperation || current.checkpoint.postId); release(accepted ? "unknown" : "failed", undefined, { code: error.code, message: error.message, retryable: !accepted });
         }
-        else if (current.activeOperation) release("reconciling", undefined, { code: "RESULT_UNCONFIRMED", message: "The platform may have received this request. Checking its result before another attempt.", retryable: false });
+        else if (current.activeOperation) release("reconciling", undefined, { code: error instanceof ProviderFault || error instanceof PublishingError ? error.code : "RESULT_UNCONFIRMED", message: error instanceof ProviderFault || error instanceof PublishingError ? error.message : "The platform may have received this request. Checking its result before another attempt.", retryable: false });
         else if (error instanceof ProviderFault && error.outcome === "read_failed") release("processing", undefined, { code: error.code, message: error.message, retryable: false });
         else release("failed", undefined, { code: error instanceof ProviderFault || error instanceof PublishingError ? error.code : "PUBLISHING_FAILED", message: error instanceof ProviderFault || error instanceof PublishingError ? error.message : "The post could not be completed. Check the account and export before trying again.", retryable: error instanceof ProviderFault && error.retryable });
       } catch (fence) { if (!(fence instanceof PublishingError) || fence.code !== "LEASE_LOST") throw fence; }

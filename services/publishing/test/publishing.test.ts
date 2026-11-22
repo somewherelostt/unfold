@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -6,7 +7,7 @@ import { test } from "node:test";
 import { PublishingStore } from "../src/store.ts";
 import { resolveSchedule } from "../src/time.ts";
 import { parseDestinations, validateDestination } from "../src/validation.ts";
-import { accountView, postView, type Account, type CompletedExport, type DestinationInput } from "../src/types.ts";
+import { accountView, postView, PublishingError, type Account, type CompletedExport, type DestinationInput } from "../src/types.ts";
 import { ComposioClient, ProviderFault, TOOL_SPECS } from "../src/composio.ts";
 import { loadPublishingConfig, TOOLKIT_VERSIONS } from "../src/config.ts";
 import { Publisher } from "../src/dispatch.ts";
@@ -189,7 +190,7 @@ test("empty managed scope metadata requires declared OAuth defaults before reque
     const client = new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async (url, init) => {
       if (String(url).includes("/toolkits/")) return Response.json({ slug: "pinterest", composio_managed_auth: [{ mode: "OAUTH2", is_default: true, scopes: { available: [] } }], auth_config_details: [{ mode: "OAUTH2", fields: { auth_config_creation: { optional: [{ name: "scopes", default: declared ? "boards:read,boards:write,pins:read,pins:write,user_accounts:read" : "boards:read" }] } } }] });
       if (init?.method === "GET") return Response.json({ items: [] });
-      creates++; const body = JSON.parse(String(init?.body)); assert.equal(body.auth_config.credentials.scopes, "boards:read,pins:read,pins:write,user_accounts:read"); return Response.json({ auth_config: { id: "ac_fixture" } });
+      creates++; const body = JSON.parse(String(init?.body)); assert.equal(body.auth_config.credentials.scopes, "boards:read,boards:write,pins:read,pins:write,user_accounts:read"); return Response.json({ auth_config: { id: "ac_fixture" } });
     });
     if (declared) assert.equal(await client.prepareAuthConfig("pinterest"), "ac_fixture"); else await assert.rejects(client.prepareAuthConfig("pinterest"), /access required/);
     assert.equal(creates, declared ? 1 : 0);
@@ -224,4 +225,54 @@ test("a manual Check result never initiates a new public publication", () => fix
   }
   const publisher = new Publisher(s, new FixtureClient(loadPublishingConfig("/tmp", {})), { open: async () => ({ absolutePath: "/fixture", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" });
   await publisher.dispatch(s.claim()!); assert.equal(publishes, 0); assert.equal(s.get(owner, p.id).destinations[0].error?.code, "READY_TO_RETRY");
+}));
+test("an upload-origin failure retains its safe error code and never advances to container or publish", () => fixture(async (s, advance) => {
+  const p = s.create(owner, media, [destination()], resolveSchedule({ mode: "now" }, 1_800_000_000_000), "staging-origin-failure"); let executions = 0;
+  class Client extends ComposioClient {
+    override async verifyAccount(a: Account) { return a; }
+    override async stageInstagramVideo(_path: string, _filename: string, onPrepared: (id: string) => void): Promise<never> { onPrepared("file_fixture"); throw new PublishingError("UPLOAD_UNAVAILABLE", "The video upload destination could not be verified.", 502); }
+    override async execute() { executions++; return {}; }
+  }
+  const publisher = new Publisher(s, new Client(loadPublishingConfig("/tmp", {})), { open: async () => ({ absolutePath: "/fixture.mp4", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" });
+  await publisher.dispatch(s.claim()!); advance(60_001); await publisher.dispatch(s.claim()!);
+  const d = s.get(owner, p.id).destinations[0]; assert.equal(d.state, "unknown"); assert.equal(d.error?.code, "UPLOAD_UNAVAILABLE"); assert.equal(d.error?.retryable, false); assert.equal(d.checkpoint.stagedFileId, "file_fixture"); assert.equal(d.activeOperation?.kind, "instagram_container"); assert.equal(executions, 0); assert.throws(() => s.retry(owner, p.id, d.id), /cannot safely/);
+}));
+test("Pinterest scope recipes request board write access and never reuse the older insufficient config", async () => {
+  const oldName = `Unfold publishing pinterest ${createHash("sha256").update("unfold").digest("hex").slice(0, 12)}`;
+  let name = "", creates = 0, reuse = false;
+  const fetcher: typeof fetch = async (url, init) => {
+    const u = new URL(String(url));
+    if (u.pathname.includes("/toolkits/")) return Response.json({ slug: "pinterest", composio_managed_auth: [{ mode: "OAUTH2", is_default: true, scopes: { available: ["boards:read", "boards:write", "pins:read", "pins:write", "user_accounts:read"] } }] });
+    if (init?.method === "GET") { name = u.searchParams.get("search")!; assert.notEqual(name, oldName); return Response.json({ items: [{ id: reuse ? "ac_new" : "ac_old", name: reuse ? name : oldName, status: "ENABLED", auth_scheme: "OAUTH2", is_composio_managed: true, toolkit: { slug: "pinterest" }, restrict_to_following_tools: Object.keys(TOOL_SPECS.pinterest) }] }); }
+    creates++; const body = JSON.parse(String(init?.body)); assert.equal(body.auth_config.name, name); assert.equal(body.auth_config.credentials.scopes, "boards:read,boards:write,pins:read,pins:write,user_accounts:read"); return Response.json({ auth_config: { id: "ac_new" } });
+  };
+  assert.equal(await new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), fetcher).prepareAuthConfig("pinterest"), "ac_new");
+  reuse = true; assert.equal(await new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), fetcher).prepareAuthConfig("pinterest"), "ac_new"); assert.equal(creates, 1);
+});
+test("only the verified Pinterest missing-board-scope preflight is a definite rejection", async () => {
+  const exact = "Pinterest authentication failed: Your token does not have sufficient permissions. Missing: ['boards:write']";
+  for (const [platform, slug, status, error, expected] of [["pinterest", "PINTEREST_CREATE_PIN", 401, exact, "rejected"], ["pinterest", "PINTEREST_CREATE_PIN", 500, exact, "ambiguous"], ["pinterest", "PINTEREST_CREATE_PIN", 401, "An unstructured failure after a request", "ambiguous"], ["instagram", "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH", 401, exact, "ambiguous"]] as const) {
+    const client = new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async () => Response.json({ successful: false, error, data: { status_code: status } }));
+    await assert.rejects(client.execute(account("account", platform), slug, {}, true), (fault: unknown) => fault instanceof ProviderFault && fault.outcome === expected && (expected !== "rejected" || fault.code === "RECONNECT_REQUIRED"));
+  }
+});
+test("missing or unknown publishing scopes require reconnect without priming pending OAuth identity", async () => {
+  const a = account("pin", "pinterest"); let scopes: string[] | undefined = ["boards:read", "pins:read", "pins:write", "user_accounts:read"];
+  const client = new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async (_url, init) => init?.method === "POST" ? Response.json({ successful: true, data: { id: "123", username: "fixture", account_type: "BUSINESS" } }) : Response.json({ id: a.providerAccountId, user_id: a.providerUserId, auth_config: { id: a.authConfigId }, toolkit: { slug: "pinterest" }, status: "ACTIVE", requested_scopes: scopes }));
+  assert.equal((await client.verifyAccount(a)).status, "reconnect_required");
+  const pending = await client.verifyAccount({ ...a, status: "connecting", identity: null, verifiedAt: null }); assert.equal(pending.status, "reconnect_required"); assert.equal(pending.identity, null); assert.equal(pending.verifiedAt, null);
+  scopes = undefined; assert.equal((await client.verifyAccount(a)).status, "reconnect_required");
+  scopes = ["boards:read", "boards:write", "pins:read", "pins:write", "user_accounts:read"]; assert.equal((await client.verifyAccount(a)).status, "connected");
+});
+test("a definite Pin scope rejection retains uploaded media and waits for renewed access before retry", () => fixture(async (s) => {
+  s.putAccount(account("pin", "pinterest")); const pin: DestinationInput = { accountId: "pin", platform: "pinterest", text: "Fixture", pinterest: { boardId: "321", title: "Fixture", altText: "Fixture video", coverFrameMs: 0 } };
+  const post = s.create(owner, media, [pin], resolveSchedule({ mode: "now" }, 1_800_000_000_000), "pin-scope-denial"), prepared = s.claim()!; s.release(prepared.destination.id, prepared.token, { state: "processing", checkpoint: { uploadId: "456" }, delayMs: 0 });
+  class Client extends ComposioClient {
+    override async verifyAccount(a: Account) { return a; }
+    override async execute(a: Account, slug: string, args: Record<string, unknown>, mutation: boolean) { if (slug === "PINTEREST_GET_BOARD") return { id: "321" }; if (slug === "PINTEREST_GET_MEDIA") return { status: "succeeded" }; return super.execute(a, slug, args, mutation); }
+  }
+  const client = new Client(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async () => Response.json({ successful: false, error: "Pinterest authentication failed: Missing: ['boards:write']", data: { status_code: 401 } }));
+  const publisher = new Publisher(s, client, { open: async () => ({ absolutePath: "/fixture.mp4", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" }); await publisher.dispatch(s.claim()!);
+  const d = s.get(owner, post.id).destinations[0]; assert.equal(d.state, "failed"); assert.equal(d.error?.code, "RECONNECT_REQUIRED"); assert.equal(d.error?.retryable, true); assert.equal(d.activeOperation, null); assert.equal(d.checkpoint.uploadId, "456"); assert.throws(() => s.retry(owner, post.id, d.id), /Reconnect/);
+  s.putAccount(account("pin", "pinterest")); assert.equal(s.retry(owner, post.id, d.id).destinations[0].checkpoint.uploadId, "456");
 }));

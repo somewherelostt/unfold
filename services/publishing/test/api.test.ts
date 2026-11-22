@@ -75,3 +75,19 @@ test("Instagram staging matches the official presign/PUT contract without app ho
   try { const result = await client.stageInstagramVideo(file, "video.mp4", (id) => { assert.equal(id, "file_fixture"); prepared = true; }); assert.equal(result.file.s3key, "private-key"); }
   finally { await rm(root, { recursive: true, force: true }); }
 });
+test("Instagram staging accepts returned Cloudflare R2 endpoints and rejects lookalikes before sending bytes", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "unfold-publishing-r2-")), file = path.join(root, "video.mp4"); await writeFile(file, "fixture-video");
+  const account = "0123456789abcdef0123456789abcdef";
+  try {
+    for (const [origin, allowed] of [[`https://temp.${account}.r2.cloudflarestorage.com`, true], [`https://${account}.r2.cloudflarestorage.com`, true], [`https://temp.${account}.r2.cloudflarestorage.com.attacker.invalid`, false], [`http://temp.${account}.r2.cloudflarestorage.com`, false], [`https://temp.${account}.r2.cloudflarestorage.com:8443`, false], ["https://127.0.0.1", false]] as const) {
+      let prepared = false, uploads = 0;
+      const client = new ComposioClient(loadPublishingConfig(root, { COMPOSIO_API_KEY: "fixture" }), async (url, init) => {
+        if (String(url).startsWith("https://backend.composio.dev/")) return Response.json({ id: "file_fixture", key: "private-fixture-key", new_presigned_url: `${origin}/video.mp4?X-Amz-Signature=fixture`, metadata: { storage_backend: "s3" } });
+        uploads++; assert.equal(prepared, true); assert.equal(init?.method, "PUT"); assert.equal(init?.redirect, "error"); const headers = new Headers(init?.headers); assert.equal(headers.get("x-api-key"), null); assert.equal(headers.get("authorization"), null); assert.equal(headers.get("cookie"), null); assert.equal(await new Response(init?.body).text(), "fixture-video"); return new Response(null, { status: 200 });
+      });
+      const work = client.stageInstagramVideo(file, "video.mp4", (id) => { assert.equal(id, "file_fixture"); prepared = true; });
+      if (allowed) assert.equal((await work).id, "file_fixture"); else await assert.rejects(work, /destination could not be verified/);
+      assert.equal(prepared, true, "accepted allocation is journaled even if its upload origin is rejected"); assert.equal(uploads, allowed ? 1 : 0);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

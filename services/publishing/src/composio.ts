@@ -26,6 +26,8 @@ export const TOOL_SPECS = {
     PINTEREST_GET_MEDIA: ["media_id"], PINTEREST_CREATE_PIN: ["board_id", "title", "description", "alt_text", "link", "media_source"], PINTEREST_GET_PIN: ["pin_id"],
   },
 } as const;
+// The pinned Pinterest connector checks boards:write before CREATE_PIN, even for existing boards.
+const PUBLISHING_SCOPES = { instagram: ["instagram_business_basic", "instagram_business_content_publish"], pinterest: ["boards:read", "boards:write", "pins:read", "pins:write", "user_accounts:read"] } as const;
 export type Capability = { platform: Platform; videoSupported: boolean; available: boolean; reason: string; checkedAt: number | null };
 /** Small REST-only adapter. Fixed API origin, pinned tool versions, no SDK or arbitrary tool execution. */
 export class ComposioClient {
@@ -78,13 +80,13 @@ export class ComposioClient {
       const toolkit = await this.request(`/toolkits/${platform}?version=${TOOLKIT_VERSIONS[platform]}`, "GET");
       const managed = (Array.isArray(toolkit.composio_managed_auth) ? toolkit.composio_managed_auth : []).map(object).find((a) => String(a.mode).toUpperCase() === "OAUTH2" && a.is_default === true);
       if (toolkit.slug !== platform || !managed) throw new PublishingError("MANAGED_CONNECTION_UNAVAILABLE", "This platform’s video connection requires additional setup by the app administrator.", 503);
-      const required = platform === "instagram" ? ["instagram_business_basic", "instagram_business_content_publish"] : ["boards:read", "pins:read", "pins:write", "user_accounts:read"];
+      const required = PUBLISHING_SCOPES[platform];
       const available = object(managed.scopes).available;
       const defaults = (Array.isArray(toolkit.auth_config_details) ? toolkit.auth_config_details : []).map(object).filter((a) => a.mode === "OAUTH2").flatMap((a) => { const fields = object(object(a.fields).auth_config_creation); return [...(Array.isArray(fields.required) ? fields.required : []), ...(Array.isArray(fields.optional) ? fields.optional : [])].map(object).filter((f) => f.name === "scopes" && typeof f.default === "string").flatMap((f) => String(f.default).split(",").map((s) => s.trim()).filter(Boolean)); });
       // An empty available list is unspecified for some live toolkits. Require explicit default-scope evidence instead.
       const supported = Array.isArray(available) && available.length ? available : defaults;
       if (required.some((scope) => !supported.includes(scope))) throw new PublishingError("PUBLISH_ACCESS_UNAVAILABLE", "This connection does not offer the access required to publish video. Contact the app administrator.", 503);
-      const name = `Unfold publishing ${platform} ${createHash("sha256").update(this.config.instanceId).digest("hex").slice(0, 12)}`;
+      const name = `Unfold publishing ${platform} ${createHash("sha256").update(`${this.config.instanceId}\0${required.join(",")}`).digest("hex").slice(0, 12)}`;
       const allowedTools = Object.keys(TOOL_SPECS[platform]);
       const existing = await this.request(`/auth_configs?toolkit_slug=${platform}&is_composio_managed=true&search=${encodeURIComponent(name)}&limit=200`, "GET");
       const match = (Array.isArray(existing.items) ? existing.items : []).map(object).find((a) => { const restrictions = Array.isArray(a.restrict_to_following_tools) ? a.restrict_to_following_tools : []; return a.name === name && a.status === "ENABLED" && a.auth_scheme === "OAUTH2" && a.is_composio_managed === true && object(a.toolkit).slug === platform && allowedTools.every((tool) => restrictions.includes(tool)) && restrictions.length === allowedTools.length; });
@@ -113,10 +115,13 @@ export class ComposioClient {
     const after = await stat(absolutePath); if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ino !== before.ino) throw new PublishingError("EXPORT_CHANGED", "The video changed before upload. Inspect it again.", 409);
     const result = await this.request("/files/upload/request", "POST", { toolkit_slug: "instagram", tool_slug: "INSTAGRAM_POST_IG_USER_MEDIA", filename, mimetype: "video/mp4", md5: md5.digest("hex") }, true);
     if (typeof result.id !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(result.id) || typeof result.key !== "string" || !result.key || result.key.length > 4096 || /[\x00-\x1f]/.test(result.key) || typeof result.new_presigned_url !== "string") throw new ProviderFault("UPLOAD_UNCONFIRMED", "The video upload reference could not be confirmed.", "ambiguous");
-    const url = new URL(result.new_presigned_url);
-    const aws = url.hostname === "s3.amazonaws.com" || /^s3[.-][a-z0-9-]+\.amazonaws\.com$/.test(url.hostname) || /^[a-z0-9][a-z0-9.-]*\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname);
-    if (!aws || url.protocol !== "https:" || url.username || url.password || url.port) throw new PublishingError("UPLOAD_UNAVAILABLE", "The video upload destination could not be verified.", 502);
+    // Record the accepted file allocation even when the subsequent upload-origin check fails.
     onPrepared(result.id);
+    let url: URL; try { url = new URL(result.new_presigned_url); } catch { throw new PublishingError("UPLOAD_UNAVAILABLE", "The video upload destination could not be verified.", 502); }
+    const aws = url.hostname === "s3.amazonaws.com" || /^s3[.-][a-z0-9-]+\.amazonaws\.com$/.test(url.hostname) || /^[a-z0-9][a-z0-9.-]*\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname);
+    // The authenticated Files API also returns Cloudflare R2's documented S3-compatible endpoint.
+    const r2 = /^(?:[a-z0-9][a-z0-9-]{0,62}\.)?[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/.test(url.hostname);
+    if ((!aws && !r2) || url.protocol !== "https:" || url.username || url.password || url.port || url.hash) throw new PublishingError("UPLOAD_UNAVAILABLE", "The video upload destination could not be verified.", 502);
     // A file-backed Blob streams bytes while letting fetch compute Content-Length, matching the official upload contract.
     const blob = await openAsBlob(absolutePath, { type: "video/mp4" });
     let uploaded: Response;
@@ -147,12 +152,21 @@ export class ComposioClient {
     if (!handle || handle.length > 200 || (account.platform === "instagram" && !numericId(profile.id))) throw new PublishingError("IDENTITY_UNAVAILABLE", "The connected account’s identity could not be verified.", 409);
     const accountType = typeof profile.account_type === "string" ? profile.account_type : undefined;
     if (account.platform === "instagram" && !["BUSINESS", "MEDIA_CREATOR", "CREATOR"].includes(accountType ?? "")) throw new PublishingError("PROFESSIONAL_ACCOUNT_REQUIRED", "Connect an Instagram Business or Creator account. Personal accounts cannot publish through this connection.", 409);
+    const hasPublishingScopes = PUBLISHING_SCOPES[account.platform === "instagram" ? "instagram" : "pinterest"].every((scope) => requestedScopes.includes(scope));
+    if (!hasPublishingScopes) return { ...account, status: "reconnect_required", requestedScopes };
     return { ...account, status: "connected", requestedScopes, identity: { id: String(profile.id ?? handle), handle, name: typeof profile.name === "string" ? profile.name.slice(0, 200) : typeof profile.business_name === "string" ? profile.business_name.slice(0, 200) : handle, ...(accountType ? { accountType } : {}) }, verifiedAt: Date.now() };
   }
   async execute(account: Account, slug: string, args: JsonObject, mutation: boolean): Promise<JsonObject> {
     if (account.platform === "bluesky" || !Object.hasOwn(TOOL_SPECS[account.platform], slug)) throw new PublishingError("UNSUPPORTED_ACTION", "This publishing action is unavailable.", 409);
     const result = await this.request(`/tools/execute/${slug}`, "POST", { connected_account_id: account.providerAccountId, user_id: account.providerUserId, version: TOOLKIT_VERSIONS[account.platform], arguments: args }, mutation);
-    if (result.successful !== true) throw new ProviderFault("PLATFORM_RESULT_UNCONFIRMED", mutation ? "The platform did not confirm this request. Its result needs verification before trying again." : "The platform could not return this account’s information.", mutation ? "ambiguous" : "read_failed", !mutation);
+    if (result.successful !== true) {
+      const data = object(result.data), status = typeof data.status_code === "number" ? data.status_code : result.mercury_last_http_status_code;
+      const error = typeof result.error === "string" ? result.error : typeof data.message === "string" ? data.message : "";
+      // This exact connector preflight denial was verified in its live execution receipt.
+      // Other 4xx/tool errors can follow an accepted side effect and remain ambiguous.
+      if (account.platform === "pinterest" && slug === "PINTEREST_CREATE_PIN" && (status === 401 || status === 403) && error.startsWith("Pinterest authentication failed:") && /Missing:\s*\[['"]boards:write['"]\]/.test(error)) throw new ProviderFault("RECONNECT_REQUIRED", "This Pinterest connection needs permission to manage boards before publishing. Reconnect and review the updated access request.", "rejected", true, status);
+      throw new ProviderFault("PLATFORM_RESULT_UNCONFIRMED", mutation ? "The platform did not confirm this request. Its result needs verification before trying again." : "The platform could not return this account’s information.", mutation ? "ambiguous" : "read_failed", !mutation);
+    }
     return object(result.data);
   }
   async disconnect(account: Account) {
