@@ -1,48 +1,8 @@
-/* Unfold design tokens. Dark-first; light theme via [data-theme="light"]. See brand/BRAND.md. */
+/* Unfold design tokens. Light product canvas; explicit theme scopes also work in nested previews. */
 :root {
-  color-scheme: dark;
-
-  /* Surfaces */
-  --bg: #08080A;
-  --surface-1: #101012;
-  --surface-2: #17171A;
-  --surface-3: #1F1F23;
-  --hairline: rgb(255 255 255 / .07);
-  --hairline-strong: rgb(255 255 255 / .12);
-  --scrim: rgb(0 0 0 / .5);
-
-  /* Text tiers */
-  --text-1: #EDEDEF;
-  --text-2: #A1A1A8;
-  --text-3: #6E6E76;
-  --text-4: #4A4A52;
-
-  /* Signals (use sparingly) */
-  --accent: #FF5A1F;
-  --accent-ink: #0A0A0B;
-  --agent: #8F75FF;
+  /* Theme-independent media and motion values. Caption colours belong to footage, not chrome. */
   --caption: #FFE14D;
-  --primary-btn: #F2F2F2;
-  --primary-btn-ink: #0A0A0B;
-  --success: #2BD27F;
-  --danger: #FF6369;
-
-  /* Timeline tracks: fill / edge-or-content */
-  --track-video: #2A62B8;      --track-video-edge: #4C8DF0;
-  --track-music: #17624A;      --track-music-wave: #3CDDA7;
-  --track-captions: #4E3FA6;   --track-captions-ink: #D9D2FF;
-  --track-sfx: #8A2E5E;        --track-sfx-ink: #FF7AC0;
-  --track-transition: #8A5A12; --track-transition-ink: #FFB020;
-  --track-zoom: #1E5E3A;       --track-zoom-ink: #45D38A;
-  --beat: rgb(255 255 255 / .18);
-  --downbeat: rgb(255 255 255 / .32);
-
-  /* Depth */
-  --shadow-raised: 0 0 0 1px rgb(255 255 255 / .05), inset 0 1px 0 rgb(255 255 255 / .04), 0 16px 48px -12px rgb(0 0 0 / .6);
-  --shadow-float: 0 0 0 1px rgb(255 255 255 / .06), 0 24px 64px -16px rgb(0 0 0 / .7);
-  --glass-bg: rgb(8 8 10 / .72);
   --glass-filter: blur(24px) saturate(1.5);
-  --glow-hero: radial-gradient(60% 50% at 50% 35%, rgb(30 44 70 / .45), transparent 70%);
   --gradient-brand: linear-gradient(135deg, #FF5A1F 0%, #FF4FA3 50%, #7B5CFF 100%);
 
   /* Type */
@@ -65,22 +25,13 @@
   --dur-panel: 280ms;
   --dur-reveal: 380ms;
 
-  /* Legacy aliases (older components) */
-  --surface: var(--surface-1);
-  --border: var(--hairline-strong);
-  --ink: var(--text-1);
-  --ink-muted: var(--text-2);
-  --flare: var(--accent);
-  --flare-ink: var(--accent-ink);
-  --violet: var(--agent);
-  --caption-yellow: var(--caption);
-  --track-beat: var(--beat);
   --radius-sm-legacy: 8px;
   --dur-fast: var(--dur-pop);
   --ease-out: var(--ease);
 }
 
-:root[data-theme="light"] {
+/* Set the root as well as the product wrapper so body-mounted portals inherit the same palette. */
+:root, [data-theme="light"] {
   color-scheme: light;
   --bg: #FAFAF8;
   --surface-1: #FFFFFF;
@@ -91,16 +42,77 @@
   --scrim: rgb(10 10 12 / .35);
   --text-1: #0B0B0C;
   --text-2: #55555C;
-  --text-3: #85858C;
-  --text-4: #B4B4BA;
+  --text-3: #626269;
+  --text-4: #696970;
   --accent: #F04E14;
-  --agent: #6E4FF0;
+  --accent-ink: #0A0A0B;
+  --accent-text: #B8390D;
+  --agent: #6543D1;
   --primary-btn: #0B0B0C;
   --primary-btn-ink: #FFFFFF;
+  --success: #187347;
+  --danger: #B32E36;
+
+  /* Soft lane fills with dark labels and markers, separate from the footage itself. */
+  --track-video: #E3EAF6;      --track-video-edge: #49658D;
+  --track-music: #DCECE3;      --track-music-wave: #236747;
+  --track-captions: #EAE5FA;   --track-captions-ink: #513A95;
+  --track-sfx: #F3E3EC;        --track-sfx-ink: #87355E;
+  --track-transition: #F4E8D2; --track-transition-ink: #835714;
+  --track-zoom: #DFECE2;       --track-zoom-ink: #28613E;
   --beat: rgb(10 10 12 / .14);
   --downbeat: rgb(10 10 12 / .26);
   --shadow-raised: 0 0 0 1px rgb(10 10 12 / .06), 0 1px 2px rgb(10 10 12 / .04), 0 12px 32px -12px rgb(10 10 12 / .12);
-  --shadow-float: 0 0 0 1px rgb(10 10 12 / .06), 0 24px 64px -16px rgb(10 10 12 / .18);
+  --shadow-float: 0 0 0 1px rgb(10 10 12 / .08), 0 4px 12px -4px rgb(10 10 12 / .06), 0 20px 48px -16px rgb(10 10 12 / .16);
   --glass-bg: rgb(250 250 248 / .75);
   --glow-hero: radial-gradient(60% 50% at 50% 35%, rgb(255 90 31 / .08), transparent 70%);
+}
+
+/* Full reset: a dark crop inside a light page must not inherit light signals or timeline colours. */
+[data-theme="dark"], .mk-dark {
+  color-scheme: dark;
+  --bg: #08080A;
+  --surface-1: #101012;
+  --surface-2: #17171A;
+  --surface-3: #1F1F23;
+  --hairline: rgb(255 255 255 / .07);
+  --hairline-strong: rgb(255 255 255 / .12);
+  --scrim: rgb(0 0 0 / .5);
+  --text-1: #EDEDEF;
+  --text-2: #A1A1A8;
+  --text-3: #6E6E76;
+  --text-4: #4A4A52;
+  --accent: #FF5A1F;
+  --accent-ink: #0A0A0B;
+  --accent-text: #FF875B;
+  --agent: #8F75FF;
+  --primary-btn: #F2F2F2;
+  --primary-btn-ink: #0A0A0B;
+  --success: #2BD27F;
+  --danger: #FF6369;
+  --track-video: #2A62B8;      --track-video-edge: #4C8DF0;
+  --track-music: #17624A;      --track-music-wave: #3CDDA7;
+  --track-captions: #4E3FA6;   --track-captions-ink: #D9D2FF;
+  --track-sfx: #8A2E5E;        --track-sfx-ink: #FF7AC0;
+  --track-transition: #8A5A12; --track-transition-ink: #FFB020;
+  --track-zoom: #1E5E3A;       --track-zoom-ink: #45D38A;
+  --beat: rgb(255 255 255 / .18);
+  --downbeat: rgb(255 255 255 / .32);
+  --shadow-raised: 0 0 0 1px rgb(255 255 255 / .05), inset 0 1px 0 rgb(255 255 255 / .04), 0 16px 48px -12px rgb(0 0 0 / .6);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / .06), 0 24px 64px -16px rgb(0 0 0 / .7);
+  --glass-bg: rgb(8 8 10 / .72);
+  --glow-hero: radial-gradient(60% 50% at 50% 35%, rgb(30 44 70 / .45), transparent 70%);
+}
+
+/* Resolve aliases at each theme boundary rather than inheriting values resolved on the root. */
+:root, [data-theme], .mk-light, .mk-dark {
+  --surface: var(--surface-1);
+  --border: var(--hairline-strong);
+  --ink: var(--text-1);
+  --ink-muted: var(--text-2);
+  --flare: var(--accent);
+  --flare-ink: var(--accent-ink);
+  --violet: var(--agent);
+  --caption-yellow: var(--caption);
+  --track-beat: var(--beat);
 }

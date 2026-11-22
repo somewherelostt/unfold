@@ -29,7 +29,7 @@ export function TransitionsPanel({ plan, base, overrides, frames, set, seek }: P
   const usedTypes = new Set<TransitionType>(plan.transitions.length ? plan.transitions.map((t) => t.type) : ["cut"]);
 
   return (
-    <div className="space-y-5 px-4 pb-4">
+    <div className="uf-tool-content space-y-5 px-4 pb-4">
       <div className="space-y-3">
         <Row label="Transitions">
           <Toggle label="Transitions" checked={plan.transitions.length > 0} onChange={(v) => set({ transitions: v })} />
@@ -73,7 +73,7 @@ export function TransitionsPanel({ plan, base, overrides, frames, set, seek }: P
                   <button type="button" onClick={() => seek(t.at)} className="text-[13px] text-text-1">
                     Cut {i + 1}
                   </button>
-                  <span className="tabular font-mono text-[11px] text-text-3">{clock(t.at)}</span>
+                  <span className="tabular font-mono text-[12px] text-text-2">{clock(t.at)}</span>
                   <div className="ml-auto">
                     <Popover
                       align="end"

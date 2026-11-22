@@ -68,14 +68,14 @@ function TrackRow({ m, active, big, playing, onPlay, onPick }: { m: MusicTrack; 
       </button>
       <button type="button" aria-pressed={active} onClick={onPick} className="min-w-0 flex-1 text-left">
         <div className="truncate text-[13px] font-medium text-text-1">{m.title}</div>
-        <div className="flex items-center gap-1.5 text-[11px] text-text-3">
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-text-3">
           <span className="tabular font-mono">{Math.round(m.bpm)} BPM</span>
           <span className="text-text-4">·</span>
           <span className="truncate">{m.moods.slice(0, 2).join(", ")}</span>
         </div>
       </button>
       {big && <MiniWave seed={m.id} />}
-      {active && <span className="text-[11px] text-text-2">In use</span>}
+      {active && <span className="text-[12px] font-medium text-text-2">In use</span>}
     </div>
   );
 }

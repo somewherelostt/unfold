@@ -52,7 +52,7 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
                 </span>
               ))}
             </span>
-            <span className="absolute bottom-1.5 left-2 text-[10px] text-white/55">{p.label}</span>
+            <span className="absolute bottom-1.5 left-2 text-[11px] font-medium text-white/80">{p.label}</span>
           </button>
         ); })}
       </div>

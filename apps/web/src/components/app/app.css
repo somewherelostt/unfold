@@ -6,13 +6,15 @@
 .uf-app {
   font-size: 13px;
   line-height: 20px;
+  font-family: var(--font-sans);
   color: var(--text-1);
   caret-color: var(--accent);
 }
 .uf-app ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); }
-.uf-app :where(button, a, input, textarea, select, [tabindex]):focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 1px var(--hairline-strong), 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+:is(.uf-app, .ui-dialog, .uf-publish-modal) :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--text-1);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
 }
 .uf-app button:not(:disabled) { cursor: pointer; }
 .uf-app .chrome { user-select: none; -webkit-user-select: none; }
@@ -20,6 +22,15 @@
 .uf-app .no-scrollbar::-webkit-scrollbar { display: none; }
 .uf-app .thin-scrollbar { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 .uf-app .frosted { background: var(--glass-bg); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter); }
+
+/* Keep the brand orange for fills; small orange labels use a readable ink on pale surfaces. */
+:is(.uf-app, .uf-publish-modal) :is(.text-accent, .uf-publish-status-processing, .uf-publish-status-publishing, .uf-publish-status-reconciling) { color: var(--accent-text); }
+
+/* Native date/select controls follow the light shell, including dialogs promoted to the top layer. */
+.uf-app[data-theme="light"] .uf-publish-field,
+:root[data-theme="light"] .uf-publish-modal .uf-publish-field { color-scheme: light; }
+.uf-app :is(.ui-dialog, .uf-publish-modal)::backdrop,
+:root[data-theme="light"] :is(.ui-dialog, .uf-publish-modal)::backdrop { background: var(--scrim, rgb(10 10 12 / .35)); }
 
 /* Reveal: fade + 8px rise + blur 4px → 0 (380ms). Stagger with --i (60ms). */
 .uf-reveal { opacity: 0; transform: translateY(8px); filter: blur(4px); }
@@ -70,19 +81,7 @@
   .uf-track-fill { clip-path: none; }
 }
 
-/* Workspace foundations. Scoped to product pages so marketing keeps its established composition. */
-.uf-app {
-  --bg: #0d0f11;
-  --surface-1: #131416;
-  --surface-2: #1d1f22;
-  --surface-3: #2a2d31;
-  --text-2: #b9bac3;
-  --text-3: #a0a1ad;
-  --text-4: #9798a3;
-  --primary-btn: #ff5a1f;
-  --primary-btn-ink: #130600;
-  --shadow-raised: 0 0 0 1px var(--hairline), 0 3px 12px rgb(0 0 0 / .12);
-}
+/* Workspace foundations. The shared theme owns colour, including body-mounted dialogs. */
 .uf-page { width: 100%; max-width: 1184px; margin: 0 auto; padding: 44px 32px 72px; }
 .uf-page-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 28px; }
 .uf-kicker { color: var(--text-3); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 12px; }
@@ -98,10 +97,10 @@
 .uf-field:focus { border-color: var(--accent); }
 .uf-example-chip { min-height: 32px; padding: 5px 10px; border: 1px solid var(--hairline-strong); border-radius: 8px; color: var(--text-2); font-size: 12px; }
 .uf-example-chip:hover { color: var(--text-1); background: var(--surface-3); }
-.uf-upload-target { display: flex; width: 100%; min-height: 164px; flex-direction: column; align-items: center; justify-content: center; padding: 16px; border: 1px dashed rgb(255 255 255 / .23); border-radius: 12px; text-align: center; background: var(--bg); transition: background 150ms, border-color 150ms; }
+.uf-upload-target { display: flex; width: 100%; min-height: 164px; flex-direction: column; align-items: center; justify-content: center; padding: 16px; border: 1px dashed var(--hairline-strong); border-radius: 12px; text-align: center; background: var(--bg); transition: background 150ms, border-color 150ms; }
 .uf-upload-target:hover, .uf-upload-target.is-dragging { border-color: var(--accent); background: var(--surface-2); }
 .uf-upload-target:disabled { opacity: .5; }
-.uf-upload-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgb(255 90 31 / .3); border-radius: 9px; color: var(--accent); background: rgb(255 90 31 / .06); }
+.uf-upload-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 9px; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .uf-upload-title { margin-top: 10px; font-size: 14px; font-weight: 500; color: var(--text-1); }
 .uf-upload-limits { margin-top: 12px; padding: 2px 8px; background: var(--surface-2); border-radius: 6px; color: var(--text-2); font-size: 11px; }
 .uf-source-ready { overflow: hidden; border: 1px solid var(--hairline-strong); border-radius: 12px; background: var(--bg); }
@@ -109,7 +108,7 @@
 .uf-source-poster img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
 .uf-source-badge { position: absolute; bottom: 12px; left: 12px; padding: 4px 8px; border-radius: 6px; background: rgb(0 0 0 / .8); color: white; font-size: 11px; }
 .uf-status-card { padding: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid var(--hairline-strong); border-radius: 10px; font-size: 12px; line-height: 20px; background: var(--surface-2); }
-.uf-status-card[data-tone=error] { border-color: rgb(255 99 105 / .3); color: var(--danger); }
+.uf-status-card[data-tone=error] { border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); }
 .uf-library { min-width: 0; }
 .uf-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .uf-section-heading h2 { font-size: 17px; font-weight: 500; letter-spacing: -.015em; }
@@ -120,7 +119,7 @@
 .uf-library-empty p { color: var(--text-3); font-size: 13px; line-height: 21px; margin-top: 5px; }
 .uf-edit-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .uf-edit-card { min-width: 0; overflow: hidden; border: 1px solid var(--hairline-strong); border-radius: 12px; background: var(--surface-1); transition: border-color 150ms; }
-.uf-edit-card:hover { border-color: rgb(255 255 255 / .3); }
+.uf-edit-card:hover { border-color: color-mix(in srgb, var(--text-1) 28%, transparent); }
 .uf-edit-thumbnail { position: relative; display: grid; place-items: center; aspect-ratio: 16/10; background: var(--surface-2); color: var(--text-3); }
 .uf-edit-thumbnail img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .uf-edit-thumbnail span { position: absolute; bottom: 8px; left: 8px; color: white; background: rgb(0 0 0 / .8); border-radius: 5px; padding: 2px 6px; font-family: var(--font-mono); font-size: 10px; }

@@ -34,7 +34,7 @@ export function KeyCard(p: Props) {
     <p className="uf-settings-copy">{p.description}</p>
     {p.model && <p className="uf-connection-model">{p.model}</p>}
     {connected && !showForm && <div className="uf-connection-controls">
-      <span className="uf-masked-key">•••• {p.last4}</span>
+      <span className="uf-masked-key tabular">•••• {p.last4}</span>
       {allowed.check && <Button variant="secondary" disabled={testing || removing} onClick={() => startTest(async () => setTest(await testCerebrasKey()))}>{testing ? "Checking…" : "Check connection"}</Button>}
       {allowed.replace && <Button variant="ghost" disabled={testing || removing} onClick={() => setEditing(true)}>Replace key</Button>}
       {allowed.remove && <Button variant="ghost" disabled={testing || removing} onClick={() => startRemove(async () => { const result = await removeKey(p.provider); setRemoveError(result.error ?? null); setTest(null); if (result.ok) setEditing(null); })}>{removing ? "Removing…" : "Remove"}</Button>}

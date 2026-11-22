@@ -112,15 +112,15 @@ function Inspiration() {
   const file = p.referenceUrl.startsWith("upload:");
   return (
     <details className="mt-4 rounded-[14px] bg-surface-1 px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--hairline)]" open={p.referenceUrl || p.referenceNotice ? true : undefined}>
-      <summary className="cursor-pointer text-[12px] text-text-2">Add an inspiration video <span className="text-text-4">· optional</span></summary>
+      <summary className="cursor-pointer text-[13px] font-medium text-text-2 hover:text-text-1">Add an inspiration video <span className="font-normal text-text-3">· optional</span></summary>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {file ? <span className="min-w-0 flex-1 truncate text-[12px] text-text-1">{p.referenceUrl.slice(7)}</span> : <input type="url" aria-label="Inspiration video link" placeholder="Paste a video link…" value={p.referenceUrl} onChange={(e) => actions.setReferenceUrl(e.target.value)} className="h-9 min-w-[160px] flex-1 rounded-[10px] bg-surface-2 px-3 text-[13px] outline-none placeholder:text-text-4" />}
+        {file ? <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">{p.referenceUrl.slice(7)}</span> : <input type="url" aria-label="Inspiration video link" placeholder="Paste a video link…" value={p.referenceUrl} onChange={(e) => actions.setReferenceUrl(e.target.value)} className="uf-field h-9 min-w-[160px] flex-1" />}
         <Button size="sm" variant="secondary" onClick={() => input.current?.click()}><IconUpload size={13} /> Attach video</Button>
         {p.referenceUrl && <Button size="icon-sm" variant="ghost" aria-label="Remove inspiration" onClick={() => actions.setReferenceFile(null)}><IconX size={13} /></Button>}
         <input ref={input} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) actions.setReferenceFile(f); e.target.value = ""; }} />
       </div>
       {p.referenceNotice && <p role="status" className="mt-2 text-[12px] text-text-3">{p.referenceNotice}</p>}
-      <p className="mt-2 text-[11px] text-text-3">Use a link, or attach the video if the link cannot be opened.</p>
+      <p className="mt-2 text-[12px] leading-5 text-text-3">Use a link, or attach the video if the link cannot be opened.</p>
     </details>
   );
 }

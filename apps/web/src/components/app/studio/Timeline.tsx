@@ -51,7 +51,7 @@ export function Timeline({
         <Skeleton className="h-5 w-full rounded-[6px]" />
         {TRACKS.map((t) => (
           <div key={t.key} className="flex items-center gap-2">
-            <span className="flex w-[84px] items-center gap-1.5 text-[12px] text-text-4">
+            <span className="flex w-[84px] items-center gap-1.5 text-[12px] font-medium text-text-3">
               {t.icon}
               {t.label}
             </span>
@@ -103,7 +103,7 @@ export function Timeline({
       <div className="sticky left-0 z-30 shrink-0 bg-surface-1/95" style={{ width: LABEL_W }}>
         <div className="h-6" />
         {TRACKS.map((t, i) => (
-          <div key={t.key} className={cx("mb-1 flex h-10 items-center gap-1.5 pl-1 text-[12px] transition-opacity duration-300", (i === 0 ? 0 : i - 1) < reveal ? "text-text-3" : "text-text-4 opacity-50")}>
+          <div key={t.key} className={cx("mb-1 flex h-10 items-center gap-1.5 pl-1 text-[12px] font-medium transition-opacity duration-300", (i === 0 ? 0 : i - 1) < reveal ? "text-text-2" : "text-text-3 opacity-50")}>
             {t.icon}
             {t.label}
           </div>
@@ -113,7 +113,7 @@ export function Timeline({
       {/* lanes */}
       <div ref={area} className="relative min-w-0 flex-1">
         {/* ruler */}
-        <div role="group" aria-label="Timeline. Use arrow keys to seek, Home for the start, End for the end." tabIndex={playerRef ? 0 : -1} className="tabular relative h-6 cursor-ew-resize touch-none font-mono text-[10px] text-text-4" onPointerDown={scrub} onKeyDown={(e) => {
+        <div role="group" aria-label="Timeline. Use arrow keys to seek, Home for the start, End for the end." tabIndex={playerRef ? 0 : -1} className="tabular relative h-6 cursor-ew-resize touch-none font-mono text-[11px] text-text-3" onPointerDown={scrub} onKeyDown={(e) => {
           const p = playerRef?.current;
           if (!p || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
           e.preventDefault();
@@ -179,12 +179,12 @@ export function Timeline({
                 onClick={() => { setSelected(shot.id); playerRef?.current?.seekTo(Math.round(shot.start * plan.fps)); onSelectBroll?.(shot.id); }}
                 aria-label={`Edit cutaway ${asset?.name ?? "supporting shot"}, ${clock(shot.start)} to ${clock(shot.end)}`}
                 title={shot.reason} aria-pressed={selected === shot.id}
-                className={cx("absolute inset-y-1 overflow-hidden rounded-md bg-surface-3 bg-cover bg-center px-1.5 text-left text-[10px] text-white", selected === shot.id && "shadow-[0_0_0_2px_var(--accent)]")}
+                className={cx("absolute inset-y-1 overflow-hidden rounded-md bg-surface-3 bg-cover bg-center px-1.5 text-left text-[11px]", asset?.frames[0] ? "text-white" : "text-text-1", selected === shot.id && "shadow-[0_0_0_2px_var(--accent)]")}
                 style={{ left: pct(shot.start), width: w(shot.start, shot.end), backgroundImage: asset?.frames[0] ? `linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,.1)),url(${asset.frames[0].url})` : undefined }}>
                 <span className="line-clamp-2">{asset?.name ?? "Supporting shot"}</span>
               </button>;
             })}
-            {!plan.broll?.length && <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-text-4">Add supporting footage in Media</span>}
+            {!plan.broll?.length && <span className="absolute inset-y-0 left-2 flex items-center text-[11px] text-text-3">Add supporting footage in Media</span>}
           </Lane>
 
           {/* captions */}
@@ -193,7 +193,7 @@ export function Timeline({
               plan.captions.chunks.map((c, i) => (
                 <span
                   key={i}
-                  className="absolute inset-y-1 overflow-hidden whitespace-nowrap rounded-[6px] bg-track-captions px-1.5 text-[10px] font-medium leading-8 text-track-captions-ink"
+                  className="absolute inset-y-1 overflow-hidden whitespace-nowrap rounded-[6px] bg-track-captions px-1.5 text-[11px] font-medium leading-8 text-track-captions-ink"
                   style={{ left: pct(c.start), width: w(c.start, c.end + 0.03) }}
                   title={c.words.map((x) => x.text).join(" ")}
                 >
@@ -209,7 +209,7 @@ export function Timeline({
                 {beats.map((b, i) => (
                   <span key={i} className="absolute bottom-0 w-px" style={{ left: pct(b), height: i % 4 === 0 ? "100%" : "35%", background: i % 4 === 0 ? "var(--downbeat)" : "var(--beat)" }} />
                 ))}
-                <span className="absolute left-1.5 top-1 rounded-[4px] bg-black/35 px-1 text-[10px] font-medium leading-4 text-white/90">
+                <span className="absolute left-1.5 top-1 rounded-[4px] bg-surface-1/90 px-1.5 text-[11px] font-medium leading-5 text-text-2">
                   {plan.music.title} · <span className="tabular font-mono">{Math.round(plan.music.bpm)} BPM</span>
                 </span>
               </div>
@@ -222,7 +222,7 @@ export function Timeline({
               <span
                 key={i}
                 title={s.name}
-                className="absolute top-1/2 flex h-6 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-track-sfx px-2 text-[10px] font-medium text-track-sfx-ink"
+                className="absolute top-1/2 flex h-6 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-track-sfx px-2 text-[11px] font-medium text-track-sfx-ink"
                 style={{ left: pct(s.at) }}
               >
                 {sfxEmoji(s.sfxId)}

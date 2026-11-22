@@ -75,8 +75,8 @@ export function EditStudio({ id }: { id: string }) {
       <Centered>
         {planError ? (
           <>
-            <h1 className="font-display text-[32px] leading-[38px]">Couldn&apos;t open this edit</h1>
-            <p className="text-[13px] text-danger">{planError}</p>
+            <h1 className="font-sans text-[32px] font-medium leading-[38px] tracking-[-0.035em] text-text-1">Couldn&apos;t open this edit</h1>
+            <p className="text-[14px] leading-6 text-danger">{planError}</p>
             <div className="flex gap-2">
               <Link href="/app" className={buttonClasses("secondary")}>
                 Back
@@ -129,8 +129,8 @@ function Generating() {
   if (run.status === "idle") {
     return (
       <Centered>
-        <h1 className="font-display text-[32px] leading-[38px]">Nothing in progress</h1>
-        <p className="text-[13px] text-text-2">Upload your footage to create an edit.</p>
+        <h1 className="font-sans text-[32px] font-medium leading-[38px] tracking-[-0.035em] text-text-1">Nothing in progress</h1>
+        <p className="text-[14px] leading-6 text-text-2">Upload your footage to create an edit.</p>
         <Link href="/app" className={buttonClasses("primary")}>
           Start an edit
         </Link>
@@ -232,8 +232,8 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
               aria-controls={on ? "studio-panel" : undefined}
               onClick={() => { setSection(on ? null : s.key); setCompactView("preview"); }}
               className={cx(
-                "flex w-11 shrink-0 flex-col items-center gap-1 rounded-[10px] py-2 text-[10px] leading-3 transition-colors disabled:opacity-35 sm:w-12",
-                on ? "bg-surface-2 text-text-1 shadow-[inset_0_0_0_1px_var(--hairline-strong)]" : "text-text-3 hover:bg-surface-1 hover:text-text-1",
+                "flex w-11 shrink-0 flex-col items-center gap-1 rounded-[10px] py-2 text-[11px] font-medium leading-[15px] transition-colors disabled:opacity-35 sm:w-12",
+                on ? "bg-surface-2 text-text-1 shadow-[inset_0_0_0_1px_var(--hairline-strong)]" : "text-text-2 hover:bg-surface-1 hover:text-text-1",
               )}
             >
               <Icon size={18} />
@@ -392,7 +392,7 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
   const failed = generating && run && (run.status === "error" || run.status === "cancelled") && !plan;
   return (
     <div className="relative flex h-full w-full items-center justify-center" style={{ containerType: "size" }}>
-      <div className={cx("relative overflow-hidden rounded-[14px] bg-black shadow-[0_0_0_1px_var(--hairline),0_24px_64px_-16px_rgb(0_0_0/.7)]", failed && "uf-generation-error")} style={failed ? { width: "100%", maxWidth: 520 } : { width: `min(100cqw, calc(100cqh * ${ratio}))`, height: `min(100cqh, calc(100cqw / ${ratio}))` }}>
+      <div className={cx("relative overflow-hidden rounded-[14px]", failed ? "uf-generation-error" : "bg-black shadow-[var(--shadow-raised)]")} style={failed ? { width: "100%", maxWidth: 520 } : { width: `min(100cqw, calc(100cqh * ${ratio}))`, height: `min(100cqh, calc(100cqw / ${ratio}))` }}>
         {showPlayer && plan ? (
           <>
             <PlanPlayer ref={playerRef} plan={plan} muted={generating} autoPlay={generating} />
@@ -401,12 +401,12 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
         ) : (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {frames[0] && <img src={frames[Math.min(1, frames.length - 1)].url} alt="" className="uf-blur-frame absolute inset-0 size-full object-cover" />}
+            {!failed && frames[0] && <img src={frames[Math.min(1, frames.length - 1)].url} alt="" className="uf-blur-frame absolute inset-0 size-full object-cover" />}
             <div className={cx("grid place-items-center p-6 text-center", !failed && "absolute inset-0")}>
               {failed ? (
                 <div className="space-y-3">
-                  <div className="font-display text-[24px] leading-[30px] text-white">{generationErrorTitle(run!)}</div>
-                  {run!.error && <p className="text-[12px] text-white/70">{run!.error}</p>}
+                  <h2 className="font-sans text-[24px] font-medium leading-[30px] tracking-[-0.025em] text-text-1">{generationErrorTitle(run!)}</h2>
+                  {run!.error && <p className="text-[13px] leading-5 text-text-2">{run!.error}</p>}
                   <div className="flex flex-wrap justify-center gap-2">
                     <Link href="/app" className={buttonClasses("secondary", "sm")}>
                       Back

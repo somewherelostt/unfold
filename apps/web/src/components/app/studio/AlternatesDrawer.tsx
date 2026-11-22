@@ -95,7 +95,7 @@ export function AlternatesDrawer({ id, frames, onClose, className = "", style }:
               </span>
               <span className="flex w-[132px] min-w-0 flex-col py-1">
                 <span className="truncate text-[13px] font-medium text-text-1">{i === 0 ? "Original" : p.title}</span>
-                <span className="mt-0.5 line-clamp-3 text-[11px] leading-[15px] text-text-3">{i === 0 ? p.title : p.rationale}</span>
+                <span className="mt-0.5 line-clamp-3 text-[12px] leading-[17px] text-text-2">{i === 0 ? p.title : p.rationale}</span>
                 <span className="mt-auto flex flex-wrap gap-1">
                   {[STYLE_TAG[p.style], p.captions.preset.replace("-", " "), p.music ? `${Math.round(p.music.bpm)} BPM` : null, `${p.durationSec.toFixed(0)}s`].filter(Boolean).map((t) => (
                     <span key={t} className="rounded-full bg-surface-3 px-1.5 text-[10px] leading-4 text-text-2">

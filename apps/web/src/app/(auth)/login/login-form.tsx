@@ -1,11 +1,11 @@
 "use client";
 import { useActionState, useState } from "react";
+import { buttonClasses } from "@/components/ui/Button";
 import { sendCode, verifyCode, type LoginState } from "./actions";
 
 const input =
   "uf-field h-11 w-full";
-const primary =
-  "inline-flex h-10 w-full items-center justify-center rounded-sm bg-primary-btn px-4 text-[13px] font-medium text-primary-btn-ink transition-opacity duration-[120ms] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-3 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50";
+const primary = buttonClasses("primary", "lg", "w-full");
 
 export function LoginForm({ next, disabled }: { next: string; disabled?: boolean }) {
   const [emailState, emailAction, sending] = useActionState<LoginState, FormData>(sendCode, { step: "email" });
@@ -25,7 +25,7 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
         <form action={codeAction} className="flex flex-col gap-3">
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="next" value={next} />
-          <label htmlFor="code" className="text-[12px] font-medium text-text-2">
+          <label htmlFor="code" className="text-[13px] font-medium text-text-1">
             6-digit code
           </label>
           <input
@@ -66,7 +66,7 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
   return (
     <form action={(fd) => { setChangeEmail(0); return emailAction(fd); }} className="flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
-      <label htmlFor="email" className="text-[12px] font-medium text-text-2">
+      <label htmlFor="email" className="text-[13px] font-medium text-text-1">
         Email
       </label>
       <input

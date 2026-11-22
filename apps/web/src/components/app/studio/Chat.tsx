@@ -42,15 +42,15 @@ export function Chat({ id, plan, generating, run, reveal = 0, onAlternates }: { 
     <div className="flex h-full min-h-0 flex-col">
       <div className="chrome flex h-11 shrink-0 items-center gap-2 px-4 shadow-[inset_0_-1px_0_var(--hairline)]">
         <span className="relative flex size-2">
-          {((generating && isActive(run)) || pending) && <span className="absolute inset-0 animate-ping rounded-full bg-agent opacity-60" />}
-          <span className="relative size-2 rounded-full bg-agent" />
+          {((generating && isActive(run)) || pending) && <span className="absolute inset-0 animate-ping rounded-full bg-accent opacity-60" />}
+          <span className="relative size-2 rounded-full bg-accent" />
         </span>
-        <span className="text-[13px] font-medium">Unfold agent</span>
+        <span className="text-[14px] font-medium tracking-[-0.015em] text-text-1">Unfold agent</span>
       </div>
 
       <div ref={list} className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
         {generating && run ? <LiveRun run={run} plan={plan} reveal={reveal} /> : chat.map((m, index) => (m.role === "user" ? <UserMsg key={m.id} text={m.text} /> : <AgentMsg key={m.id} id={id!} msg={m} initialPlan={index === 0 && !m.change ? plan : undefined} />))}
-        {!generating && chat.length === 0 && plan && <p className="text-[13px] text-text-2">{plan.rationale} Tell me what to change.</p>}
+        {!generating && chat.length === 0 && plan && <p className="text-[14px] leading-[22px] text-text-2">{plan.rationale} Tell me what to change.</p>}
       </div>
 
       <div className="px-3 pb-3">
@@ -69,7 +69,7 @@ export function Chat({ id, plan, generating, run, reveal = 0, onAlternates }: { 
             e.preventDefault();
             send(text);
           }}
-          className="rounded-[14px] bg-surface-1 p-1 shadow-[var(--shadow-raised)]"
+          className="rounded-[14px] bg-surface-1 p-1 shadow-[var(--shadow-raised)] focus-within:ring-1 focus-within:ring-hairline-strong"
         >
           <div className="flex items-end gap-1 rounded-[10px] bg-surface-2 p-1 shadow-[inset_0_0_0_1px_var(--hairline)]">
             <textarea
@@ -107,7 +107,7 @@ function SuggestChip({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonEl
     <button
       type="button"
       {...p}
-      className="h-7 shrink-0 whitespace-nowrap rounded-full bg-surface-2 px-2.5 text-[12px] text-text-2 shadow-[inset_0_0_0_1px_var(--hairline)] transition-colors hover:bg-surface-3 hover:text-text-1 disabled:opacity-40"
+      className="h-7 shrink-0 whitespace-nowrap rounded-full bg-surface-2 px-2.5 text-[12px] font-medium text-text-2 shadow-[inset_0_0_0_1px_var(--hairline)] transition-colors hover:bg-surface-3 hover:text-text-1 disabled:opacity-40"
     >
       {children}
     </button>
@@ -117,7 +117,7 @@ function SuggestChip({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonEl
 function UserMsg({ text }: { text: string }) {
   return (
     <div className="flex justify-end pl-10">
-      <div className="rounded-[12px] rounded-br-[4px] bg-surface-2 px-3 py-2 text-[13px] leading-5 text-text-1">{text}</div>
+      <div className="rounded-[12px] rounded-br-[4px] bg-surface-2 px-3 py-2 text-[14px] leading-[22px] text-text-1">{text}</div>
     </div>
   );
 }
@@ -154,7 +154,7 @@ function AgentMsg({ id, msg, initialPlan }: { id: string; msg: Extract<ChatMsg, 
   return (
     <div className="uf-rise">
       <Steps workedMs={msg.workedMs} steps={msg.steps} />
-      <p className="text-[13px] leading-5 text-text-1">{initialPlan ? initialPlan.rationale : msg.text}</p>
+      <p className="text-[14px] leading-[22px] text-text-1">{initialPlan ? initialPlan.rationale : msg.text}</p>
       {initialPlan && <p className="mt-2 text-[12px] text-text-3">{initialPlan.durationSec.toFixed(1)}s · {initialPlan.clips.length} {initialPlan.clips.length === 1 ? "clip" : "clips"}</p>}
       {msg.change && (
         <div className="mt-2.5 rounded-[12px] bg-surface-2 p-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
@@ -229,7 +229,7 @@ function LiveRun({ run, plan, reveal }: { run: Run; plan?: EditPlan; reveal: num
   const stats = useStore((s) => (run.slots[0] ? s.plans[run.slots[0]]?.stats : undefined));
   const decided = plan ? planSteps(plan).slice(0, reveal) : [];
   const done = !!plan && reveal >= 5 && run.status === "done";
-  const t = (ms: number) => <span className="tabular w-10 shrink-0 font-mono text-[11px] text-text-4">{mmss(ms).replace(/^00:/, "0:")}</span>;
+  const t = (ms: number) => <span className="tabular w-10 shrink-0 font-mono text-[11px] text-text-3">{mmss(ms).replace(/^00:/, "0:")}</span>;
   return (
     <div className="space-y-1">
       {(run.log ?? []).map((l, i) => (

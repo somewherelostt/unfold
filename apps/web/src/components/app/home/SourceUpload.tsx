@@ -46,7 +46,7 @@ export function SourceUpload({ onAttach, disabled }: { onAttach: (file: File | n
     </div> : <button type="button" disabled={disabled} className={`uf-upload-target ${dragging ? "is-dragging" : ""}`} onClick={() => input.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!disabled) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
       <span className="uf-upload-icon"><IconUpload size={24} /></span>
       <span className="uf-upload-title">Upload your main clip</span>
-      <span className="mt-1 text-[13px] text-text-3">Drop a video here, or browse files</span>
+      <span className="mt-1 text-[13px] leading-5 text-text-2">Drop a video here, or browse files</span>
       <span className="uf-upload-limits">Vertical or wide · up to 3 min · 500 MB</span>
     </button>}
     {(error || project.analyzeError) && <div role="alert" className="uf-status-card" data-tone="error"><p>{error || project.analyzeError}</p>{project.videoId && <Button size="sm" variant="secondary" disabled={project.analyzing} onClick={() => void actions.retryAnalyze()}>Retry analysis</Button>}</div>}
