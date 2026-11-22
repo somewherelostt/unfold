@@ -4,15 +4,8 @@ import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
 import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
 import type { CaptionPreset } from "@unfold/core";
-
-/** Font stacks used in-video. Loaded by the font loader from a web font CDN (needs network at preview/render time). */
-export const FONTS = {
-  anton: "Anton, 'Arial Narrow', Impact, sans-serif",
-  montserrat: "Montserrat, 'Arial Black', sans-serif",
-  bangers: "Bangers, Impact, 'Comic Sans MS', sans-serif",
-  poppins: "Poppins, 'Helvetica Neue', Arial, sans-serif",
-  editorial: "Lora, Georgia, serif",
-} as const;
+import { FONTS } from "./typography";
+export { FONTS } from "./typography";
 
 let loaded = false;
 /** Idempotent; a no-op on the server (Next SSR). Called at module load of the composition. */

@@ -23,7 +23,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./render": "./src/render.ts"
+    "./render": "./src/render.ts",
+    "./review": "./src/review.ts"
   },
   "scripts": {
     "studio": "remotion studio src/entry.ts --port 3004 --public-dir ../../apps/web/public",
@@ -32,6 +33,8 @@
     "test:render": "node --import tsx --experimental-test-module-mocks --test scripts/render.test.ts",
     "test:styling": "node --import tsx --experimental-test-module-mocks --test scripts/styling.test.tsx",
     "test:design": "node --import tsx --experimental-test-module-mocks --test scripts/caption-design.test.tsx",
+    "test:broll": "node --import tsx --experimental-test-module-mocks --test scripts/broll.test.tsx",
+    "test:quality": "node --import tsx --test scripts/quality.test.ts",
     "render:sample": "tsx scripts/render-sample.ts"
   }
 }

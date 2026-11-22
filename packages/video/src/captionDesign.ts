@@ -1,5 +1,5 @@
 import type { CaptionDesign, CaptionPreset, EditPlan } from "@unfold/core";
-import { FONTS } from "./fonts";
+import { FONTS } from "./typography";
 
 const BASE: CaptionDesign = { typeface: "sans", fontScale: 1, weight: "medium", textColor: "#FFFFFF", highlightMode: "word", animation: "fade", outline: false };
 

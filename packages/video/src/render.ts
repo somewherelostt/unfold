@@ -15,6 +15,8 @@ export type RenderPlanOptions = {
   assetBase?: string;
   /** Override the renderer entry (packages/video/src/entry.ts) if auto-detection fails. */
   entryPoint?: string;
+  /** Reuse a provisioned browser; an explicit missing executable is an error. */
+  browserExecutable?: string;
   onProgress?: (progress: number) => void;
   /** Defaults to two workers; pass null to use automatic concurrency. */
   concurrency?: number | null;
@@ -108,6 +110,7 @@ export function getServeUrl(opts: Pick<RenderPlanOptions, "publicDir" | "entryPo
 /** Render an EditPlan to an H.264 MP4 at `outPath`. Resolves to `outPath`. */
 export async function renderPlan(plan: EditPlan, outPath: string, opts: RenderPlanOptions): Promise<string> {
   opts.signal?.throwIfAborted();
+  if (opts.browserExecutable && !existsSync(opts.browserExecutable)) throw new Error("Renderer browser executable does not exist.");
   const { renderMedia, selectComposition, makeCancelSignal } = await import("@remotion/renderer");
   opts.signal?.throwIfAborted();
   const { cancelSignal, cancel } = makeCancelSignal();
@@ -116,10 +119,11 @@ export async function renderPlan(plan: EditPlan, outPath: string, opts: RenderPl
     const serveUrl = await getServeUrl(opts);
     opts.signal?.throwIfAborted();
     const inputProps = { plan, assetBase: opts.assetBase };
-    const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps });
+    const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps, browserExecutable: opts.browserExecutable });
     opts.signal?.throwIfAborted();
     await renderMedia({
       composition,
+      browserExecutable: opts.browserExecutable,
       serveUrl,
       codec: "h264",
       outputLocation: outPath,

@@ -44,9 +44,9 @@ export function checkEditQuality(plan: EditPlan, analysis?: MediaAnalysis): Qual
     const asset = plan.supporting?.find((a) => a.videoId === shot.assetId);
     const anchor = plan.clips.find((c) => c.id === shot.clipId);
     if (!asset) { errors.push(`B-roll ${shot.id} references unavailable footage.`); continue; }
-    if (!within(shot.srcStart, shot.srcEnd, asset.durationSec) || !within(shot.start, shot.end, plan.durationSec)) errors.push(`B-roll ${shot.id} exceeds its available footage.`);
+    if (!within(shot.srcStart, shot.srcEnd, asset.durationSec) || shot.srcEnd > asset.durationSec + 0.000001 || !within(shot.start, shot.end, plan.durationSec)) errors.push(`B-roll ${shot.id} exceeds its available footage.`);
     if (Math.abs(shot.srcEnd - shot.srcStart - (shot.end - shot.start)) > 0.04) errors.push(`B-roll ${shot.id} would stretch or freeze its source.`);
-    if (!anchor || shot.atSrcTime < anchor.srcStart || shot.atSrcTime >= anchor.srcEnd || Math.abs(shot.start - anchor.start - (shot.atSrcTime - anchor.srcStart) / anchor.speed) > 0.04 || shot.end > anchor.end + 0.04) errors.push(`B-roll ${shot.id} lost its narration anchor.`);
+    if (!anchor || shot.segmentIndex !== plan.clips.indexOf(anchor) || shot.atSrcTime < anchor.srcStart || shot.atSrcTime >= anchor.srcEnd || Math.abs(shot.start - anchor.start - (shot.atSrcTime - anchor.srcStart) / anchor.speed) > 0.04 || shot.end > anchor.end + 0.04) errors.push(`B-roll ${shot.id} lost its narration anchor.`);
     if (!asset.frames.some((f) => Math.abs(f.t - shot.evidenceFrameTime) < 0.02) || shot.evidenceFrameTime < shot.srcStart || shot.evidenceFrameTime >= shot.srcEnd) errors.push(`B-roll ${shot.id} is missing its sampled-frame evidence.`);
     if (!shot.reason.trim() || !shot.purpose) errors.push(`B-roll ${shot.id} needs a narrative purpose.`);
     if (i && broll[i - 1].end > shot.start + 0.02) errors.push("Supporting shots overlap one another.");

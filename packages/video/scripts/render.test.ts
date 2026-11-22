@@ -6,17 +6,17 @@ import { mock, test } from "node:test";
 import { compileEditPlan, sampleAgentPlans, sampleAnalysis, sampleLibrary } from "@unfold/core";
 import { getServeUrl, renderPlan } from "../src/render";
 
-type RenderOptions = { cancelSignal: (callback: () => void) => void; concurrency: number | null };
+type RenderOptions = { cancelSignal: (callback: () => void) => void; concurrency: number | null; browserExecutable?: string };
 type BundleOptions = { entryPoint: string; publicDir: string; enableCaching?: boolean };
 let render: (options: RenderOptions) => Promise<void> = async () => {};
-let select: () => Promise<object> = async () => ({});
+let select: (options?: { browserExecutable?: string }) => Promise<object> = async () => ({});
 let bundle: (options: BundleOptions) => Promise<string> = async () => "http://render-check.local";
 let cancelCalls = 0;
 
 mock.module("@remotion/renderer", {
   exports: {
     renderMedia: (options: RenderOptions) => render(options),
-    selectComposition: () => select(),
+    selectComposition: (options: { browserExecutable?: string }) => select(options),
     makeCancelSignal: () => {
       const callbacks: (() => void)[] = [];
       let cancelled = false;
@@ -105,6 +105,15 @@ test("exports default to two workers and preserve explicit concurrency overrides
     render = async ({ concurrency }) => { assert.equal(concurrency, expected); };
     await renderPlan(plan, "/private/tmp/unused.mp4", { publicDir: "/private/tmp/unfold-render-concurrency", concurrency: requested });
   }
+});
+
+test("a provisioned browser is passed to metadata selection and rendering", async () => {
+  const executable = new URL(import.meta.url).pathname;
+  bundle = async () => "http://render-check.local";
+  select = async (options) => { assert.equal(options?.browserExecutable, executable); return {}; };
+  render = async (options) => { assert.equal(options.browserExecutable, executable); };
+  await renderPlan(plan, "/private/tmp/unused.mp4", { publicDir: "/private/tmp/unfold-browser-test", browserExecutable: executable });
+  await assert.rejects(renderPlan(plan, "/private/tmp/unused.mp4", { publicDir: "/private/tmp/unfold-browser-test", browserExecutable: "/private/tmp/nonexistent-unfold-browser" }), /executable does not exist/);
 });
 
 function bundleFixture() {

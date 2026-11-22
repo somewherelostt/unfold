@@ -1,5 +1,6 @@
 import { getRemotionEnvironment, staticFile } from "remotion";
 import type { EditPlan } from "@unfold/core";
+export { unit } from "./typography";
 
 export const DEFAULT_FPS = 30;
 
@@ -42,6 +43,3 @@ export function safeArea(plan: Pick<EditPlan, "aspect" | "width" | "height">) {
   if (plan.aspect === "1:1") return { top: 0.08, bottom: 0.1, left: 0.07, right: 0.07 };
   return { top: 0.08, bottom: 0.1, left: 0.08, right: 0.08 };
 }
-
-/** Base type size: ~100px on a 1080-wide vertical frame. */
-export const unit = (plan: Pick<EditPlan, "width" | "height">) => Math.min(plan.width, plan.height) / 1080;

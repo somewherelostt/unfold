@@ -7,6 +7,7 @@ import { AudioLayer } from "./layers/AudioLayer";
 import { Captions } from "./layers/Captions";
 import { Hook, Overlays } from "./layers/TextPops";
 import { VideoLayer } from "./layers/VideoLayer";
+import { BrollLayer } from "./layers/BrollLayer";
 
 ensureFonts();
 
@@ -32,6 +33,7 @@ export const UnfoldComposition: React.FC<UnfoldCompositionProps> = ({ plan, asse
       }}
     >
       <VideoLayer plan={plan} fx={fx} filterId={filterId} assetBase={assetBase} />
+      <BrollLayer plan={plan} assetBase={assetBase} />
       {fx.flash > 0.01 ? <AbsoluteFill style={{ backgroundColor: "#FFFFFF", opacity: Math.min(1, fx.flash) }} /> : null}
       <Overlays plan={plan} />
       <Captions plan={plan} />

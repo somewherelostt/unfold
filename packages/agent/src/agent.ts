@@ -106,9 +106,9 @@ export function normalizePlan(raw: unknown, ctx: { analysis: MediaAnalysis; libr
       const segmentIndex = segmentIndices.get(s.segmentIndex);
       if (segmentIndex === undefined) return [];
       const asset = ctx.supporting?.find((a) => a.analysis.videoId === s.assetId)?.analysis;
-      if (!asset || s.srcEnd <= s.srcStart || s.srcEnd > asset.durationSec || !validSourceTime(s.atSrcTime)) return [];
+      if (!asset || s.srcEnd <= s.srcStart || s.srcEnd > asset.durationSec + 0.000001 || !validSourceTime(s.atSrcTime)) return [];
       if (s.evidenceFrameTime < s.srcStart || s.evidenceFrameTime >= s.srcEnd || !asset.frames.some((f) => Math.abs(f.t - s.evidenceFrameTime) < 0.02)) return [];
-      return [{ ...s, segmentIndex }];
+      return [{ ...s, srcEnd: Math.min(s.srcEnd, asset.durationSec), segmentIndex }];
     }),
   };
   if (candidate.segments.length === 0) candidate.segments = [{ srcStart: 0, srcEnd: dur, speed: 1 }];

@@ -193,6 +193,22 @@ test("supporting evidence labels preserve exact frame timestamps and source dura
   assert.match(description, /exact seconds 0\.15/);
 });
 
+test("floating point trim roundtrips survive while genuinely unavailable source time is rejected", () => {
+  const full = brollPlan([shot({ srcEnd: 4 + Number.EPSILON * 8 })]);
+  const ctx = { analysis: narration, library: sampleLibrary, supporting };
+  const normalized = normalizePlan(full, ctx);
+  assert.equal(normalized.broll?.[0].srcEnd, 4);
+  assert.equal(compileEditPlan(full, narration, sampleLibrary, { id: "float", supporting }).broll?.length, 1);
+  assert.deepEqual(compileEditPlan(brollPlan([shot({ srcEnd: 4.001 })]), narration, sampleLibrary, { id: "unavailable", supporting }).broll, []);
+  const edit = compileEditPlan(brollPlan([shot()]), narration, sampleLibrary, { id: "source-gate", supporting });
+  const invalid = { ...edit, broll: edit.broll!.map((s) => ({ ...s, srcEnd: 4.001, end: s.start + 4.001 })) };
+  assert.equal(checkEditQuality(invalid, narration).passed, false);
+  const fractional = [{ ...supporting[0], analysis: { ...supporting[0].analysis, durationSec: 4.0006 } }];
+  const bounded = compileEditPlan(brollPlan([shot({ srcEnd: 4.0006 })]), narration, sampleLibrary, { id: "fractional", supporting: fractional });
+  assert.ok(bounded.broll![0].srcEnd <= 4.0006);
+  assert.equal(checkEditQuality(bounded, narration).passed, true);
+});
+
 test("supporting placement identifies the exact repeated occurrence and respects primary playback speed", () => {
   const request = { ...brollPlan([shot({ segmentIndex: 0, atSrcTime: 4.6 }), shot({ assetId: "result", segmentIndex: 2, atSrcTime: 4.6 })]), segments: [
     { srcStart: 4, srcEnd: 6, speed: 1 }, { srcStart: 0, srcEnd: 3, speed: 1 }, { srcStart: 4, srcEnd: 6, speed: 0.5 },
@@ -223,6 +239,8 @@ test("invalid segment removal remaps supporting anchors and transitions without 
   const direct = compileEditPlan(request, narration, sampleLibrary, { id: "direct", supporting });
   const repaired = compileEditPlan(normalized, narration, sampleLibrary, { id: "normalized", supporting });
   assert.deepEqual(direct.broll?.map((s) => [s.start, s.clipId]), [[0.5, "c0"]]);
+  assert.equal(direct.broll?.[0].segmentIndex, 0);
+  assert.equal(checkEditQuality(direct, narration).passed, true);
   assert.deepEqual(direct.transitions, repaired.transitions);
   assert.equal(direct.transitions[0].type, "whip");
 });

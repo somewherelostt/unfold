@@ -176,15 +176,18 @@ export function compileEditPlan(
   for (const selection of [...(plan.broll ?? [])].sort((a, b) => a.atSrcTime - b.atSrcTime)) {
     if (![selection.srcStart, selection.srcEnd, selection.atSrcTime, selection.evidenceFrameTime].every(Number.isFinite) || selection.srcStart < 0) continue;
     const asset = supporting.find((a) => a.videoId === selection.assetId);
-    const clip = clips[segments.findIndex((s) => s.originalIndex === selection.segmentIndex)];
+    const clipIndex = segments.findIndex((s) => s.originalIndex === selection.segmentIndex);
+    const clip = clips[clipIndex];
     if (clip && (selection.atSrcTime < clip.srcStart || selection.atSrcTime >= clip.srcEnd)) continue;
-    if (!asset || !clip || selection.srcEnd > asset.durationSec || selection.srcEnd <= selection.srcStart) continue;
+    if (!asset || !clip || selection.srcEnd > asset.durationSec + 0.000001 || selection.srcEnd <= selection.srcStart) continue;
+    const trimEnd = Math.min(selection.srcEnd, asset.durationSec);
     if (!asset.frames.some((f) => Math.abs(f.t - selection.evidenceFrameTime) < 0.02)) continue;
     if (selection.evidenceFrameTime < selection.srcStart || selection.evidenceFrameTime >= selection.srcEnd) continue;
     const start = round(clip.start + (selection.atSrcTime - clip.srcStart) / clip.speed);
-    const end = round(Math.min(start + selection.srcEnd - selection.srcStart, clip.end));
+    // Rounding coverage up must not request a fractional millisecond beyond the supplied trim.
+    const end = Math.floor((Math.min(start + trimEnd - selection.srcStart, clip.end) + 1e-9) * 1000) / 1000;
     if (end - start < MIN_CLIP_SEC || selection.evidenceFrameTime >= selection.srcStart + end - start || broll.some((b) => b.start < end && b.end > start)) continue;
-    broll.push({ ...selection, id: `b${broll.length}`, clipId: clip.id, start, end, srcEnd: round(selection.srcStart + end - start) });
+    broll.push({ ...selection, segmentIndex: clipIndex, id: `b${broll.length}`, clipId: clip.id, start, end, srcEnd: Math.min(trimEnd, selection.srcStart + end - start) });
   }
 
   return {
