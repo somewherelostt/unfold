@@ -8,6 +8,22 @@ const origin = "https://unfold.maazx.dev";
 const id = "a3456789-1234-4abc-8def-0123456789ab";
 const env = { NODE_ENV: "production", VERCEL_ENV: "production", UNFOLD_ENCRYPTION_KEY: "12".repeat(32) };
 const json = (response) => response.json();
+
+test("the public GET waits for a real request before reading the database aggregate", async () => {
+  let release, reads = 0;
+  const connected = new Promise((resolve) => { release = resolve; });
+  const route = sourceLoader({
+    "next/server": { connection: () => connected },
+    "@/server/visitor-counter": { visitorHandlers: () => ({ GET: async () => { reads++; return Response.json({ count: 0 }); } }) },
+  })("../app/api/visitors/route.ts");
+  const response = route.GET();
+  await Promise.resolve();
+  assert.equal(reads, 0);
+  release();
+  assert.deepEqual(await (await response).json(), { count: 0 });
+  assert.equal(reads, 1);
+});
+
 function request(options = {}) {
   return new Request(options.url ?? `${origin}/api/visitors`, {
     method: "POST",
