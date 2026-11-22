@@ -94,6 +94,22 @@ test("manual controls add missing music, transitions and zooms, and remove an ag
   assert.equal(base.sfx.length, 1);
 });
 
+test("edit summaries distinguish continuous clips from cuts and do not infer beat syncing from music", () => {
+  const h = harness();
+  const { planSummary, planSteps } = h.load("narrate.ts");
+  const continuous = plan("continuous");
+  continuous.clips = [continuous.clips[0]];
+  continuous.durationSec = 5;
+  assert.match(planSummary(continuous), /5\.0s edit, 1 clip, 0 sound effects/);
+  assert.doesNotMatch(planSummary(continuous), /cut/);
+  assert.match(planSteps(continuous).at(-1), /continuous shot/);
+  const sequence = plan("sequence");
+  sequence.music = track;
+  sequence.sfx = [{ at: 1, sfxId: "hit", url: "/hit.mp3", name: "Hit", volume: 0.5 }];
+  assert.match(planSummary(sequence), /2 clips with 120 BPM music, 1 sound effect\./);
+  assert.doesNotMatch(planSteps(sequence)[2], /cuts|beat/);
+});
+
 test("replacing or clearing a clip discards delayed upload and analysis results", async () => {
   const old = deferred();
   const h = harness({ uploadVideo: (file) => file.name === "old.mp4" ? old.promise : Promise.resolve({ videoId: "new" }) });
@@ -594,6 +610,66 @@ test("a generic non-retryable failure keeps the draft without inventing a provid
   const { serviceErrorFields } = h.load("errors.ts");
   assert.deepEqual({ ...serviceErrorFields({ errorCode: "REQUEST_FAILED", retryable: false }) }, { retryable: false });
   assert.equal(serviceErrorFields({ errorCode: "REQUEST_FAILED", retryable: true }).retryable, undefined);
+});
+
+test("the alternate drawer blocks interrupted and non-retryable replays but keeps explicit safe actions", () => {
+  const h = harness();
+  const calls = [];
+  const drawerState = { altRoot: {}, alts: {}, plans: { root: { base: plan("root") } } };
+  const imports = {
+    "react/jsx-runtime": require("react/jsx-runtime"),
+    "react": { useEffect() {}, useState: () => [0, () => {}] },
+    "next/navigation": { useRouter: () => ({ push() {} }) },
+    "@/lib/client/store": {
+      useStore: (select) => select(drawerState),
+      isActive: h.isActive,
+      actions: { generateAlternates: (id) => calls.push(id), cancel() {} },
+    },
+    "@/components/ui/Button": { Button: "test-button" },
+    "@/components/ui/Panel": { Panel: "test-panel" },
+    "@/components/ui/Shimmer": { Shimmer: "test-shimmer" },
+    "@/components/ui/Skeleton": { Skeleton: "test-skeleton" },
+    "@/components/ui/icons": { IconSparkle: "test-icon", IconX: "test-icon" },
+    "../ui": { cx: (...values) => values.filter(Boolean).join(" ") },
+  };
+  const file = resolve(here, "../../components/app/studio/AlternatesDrawer.tsx");
+  const output = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const loaded = { exports: {} };
+  vm.runInNewContext(`(function(require,module,exports){${output}\n})`, {})(name => {
+    assert.ok(name in imports, `Unexpected drawer import: ${name}`);
+    return imports[name];
+  }, loaded, loaded.exports);
+  const walk = (node) => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(walk) : [node, ...walk(node.props?.children)];
+  const text = (node) => typeof node === "string" ? node : Array.isArray(node) ? node.map(text).join("") : node && typeof node === "object" ? text(node.props?.children) : "";
+  function generationButton(run) {
+    drawerState.alts.root = run ? { slots: [], slotErrors: [], ...run } : undefined;
+    const tree = loaded.exports.AlternatesDrawer({ id: "root", frames: [], onClose() {} });
+    return walk(tree).find(node => node.type === "test-button" && /^(Make three|Three more|Retry|Try again later)$/.test(text(node.props.children).trim()));
+  }
+  for (const run of [
+    { status: "error", interrupted: true },
+    { status: "done", interrupted: true, slots: ["earlier"] },
+    { status: "error", retryable: false },
+    { status: "done", retryable: false, slots: ["earlier"] },
+    { status: "error", errorCode: "AUTH_REJECTED" },
+    { status: "queued" },
+  ]) assert.equal(generationButton(run), undefined);
+  assert.equal(calls.length, 0);
+  for (const [run, label] of [
+    [undefined, "Make three"],
+    [{ status: "done", slots: [] }, "Three more"],
+    [{ status: "cancelled", slots: [] }, "Three more"],
+    [{ status: "error", errorCode: "RATE_LIMITED", retryable: true }, "Try again later"],
+    [{ status: "error", errorCode: "UNAVAILABLE", retryable: true }, "Try again later"],
+  ]) {
+    const before = calls.length;
+    const button = generationButton(run);
+    assert.equal(text(button.props.children).trim(), label);
+    assert.equal(calls.length, before);
+    button.props.onClick();
+    assert.equal(calls.length, before + 1);
+  }
+  assert.deepEqual(calls, ["root", "root", "root", "root", "root"]);
 });
 
 test("an authentication-rejected remix preserves the preview and safe error classification", async () => {

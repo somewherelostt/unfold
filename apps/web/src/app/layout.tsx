@@ -9,7 +9,7 @@ const serifFont = Instrument_Serif({ variable: "--font-serif", subsets: ["latin"
 
 export const metadata: Metadata = {
   title: "Unfold",
-  description: "Raw footage in. Viral edit out. Drop in your clip. Unfold adds scroll-stopping captions, beat-synced music, transitions and sound effects in seconds.",
+  description: "Turn raw footage into one edit shaped around your clip and brief. Refine it in chat and export an MP4.",
   icons: { icon: "/logo-mark.svg" },
 };
 

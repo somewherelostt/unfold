@@ -13,12 +13,12 @@ import { CLIPS } from "./showcase-clips";
 /* ---------- FAQ ---------- */
 
 const FAQS: [string, string][] = [
-  ["What kind of clips work?", "Anything with a moment worth watching: gameplay, vlogs, talking heads, podcasts, reactions. Vertical or horizontal, up to about three minutes. Unfold exports 9:16."],
+  ["What kind of clips work?", "Gameplay, vlogs, interviews and more. Upload vertical or horizontal footage up to three minutes. Export an MP4 in 9:16, 1:1 or 16:9."],
   ["How does an inspiration video help?", "Add a link or file. Unfold uses its pacing and visible caption treatment as a reference, then adapts the edit to your footage and brief."],
-  ["Where does the music come from?", "A library of royalty-free tracks tagged by mood and BPM, so the agent can match the energy and cut on the beat."],
+  ["Where does the music come from?", "When music suits your clip, Unfold can choose a track from its library and align cuts to the beat. A natural edit can keep the original audio without added music."],
   ["Can I change what the agent did?", "Yes. Ask in chat for faster cuts, fewer sounds or bigger captions. Unfold reworks the plan, and you can keep shaping it in the editor."],
-  ["What happens after I upload?", "Unfold analyses your footage and plans the edit. Preview it, ask for changes and export an MP4 when it feels right."],
-  ["Is this a template?", "No. Every edit is planned from your clip: where the hook is, where the beat drops, which words to light up. Two clips with the same preset get different edits."],
+  ["What happens after I upload?", "Unfold analyses your footage and plans one edit around your brief. Preview it, review any generated captions, ask for changes and export an MP4 when ready."],
+  ["Is this a template?", "No. Unfold plans one edit around your footage and brief, choosing the pacing and whether captions, music or effects help."],
 ];
 
 export function Faq() {
@@ -52,7 +52,7 @@ export function Faq() {
 /* ---------- final CTA: clips enter from the edges, follow the mouse by depth ---------- */
 
 const EDGE = [
-  { clip: CLIPS.food, cls: "left-[3%] top-[8%]", w: 140, r: -8, from: [-1, 0], depth: 24 },
+  { clip: CLIPS.coast, cls: "left-[3%] top-[8%]", w: 140, r: -8, from: [-1, 0], depth: 24 },
   { clip: CLIPS.parkour, cls: "left-[11%] bottom-[6%]", w: 120, r: 6, from: [-1, 0], depth: 14 },
   { clip: CLIPS.creator, cls: "right-[4%] top-[6%]", w: 136, r: 8, from: [1, 0], depth: 28 },
   { clip: CLIPS.skate, cls: "right-[12%] bottom-[8%]", w: 118, r: -6, from: [1, 0], depth: 12 },
@@ -127,7 +127,7 @@ export function FinalCta() {
         <h2 className="mk-hero-title max-w-[720px]">
           Make something worth <em>watching.</em>
         </h2>
-        <PromptShell className="mt-8 max-w-[640px]" showPresets={false} />
+        <PromptShell className="mk-prompt-shell mt-8 max-w-[640px]" showPresets={false} />
         <ButtonLink href="/app" variant="primary" size="lg" className="mt-6">
           Start editing
         </ButtonLink>
@@ -140,15 +140,15 @@ export function FinalCta() {
 
 export function Footer() {
   return (
-    <footer className="relative overflow-hidden pt-16">
+    <footer className="mk-footer relative overflow-hidden pt-16">
       <div className="mk-ruler mb-14 w-full" aria-hidden />
-      <div className="mk-container grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
-        <div>
+      <div className="mk-container grid grid-cols-2 gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="col-span-2 md:col-span-1">
           <Wordmark />
-          <p className="mt-4 max-w-[320px] text-[22px] font-medium leading-7 tracking-[-0.02em] text-text-1">Raw footage in. Viral edit out.</p>
+          <p className="mt-4 max-w-[320px] text-[22px] font-medium leading-7 tracking-[-0.02em] text-text-1">Raw footage in. Your story, edited.</p>
           <p className="mt-3 text-[12px] text-text-3">Powered by Kimi K3.1 Pro on Cerebras · OpenClaw</p>
         </div>
-        <FooterCol title="Product" links={[["Features", "#styles"], ["How it works", "#ways"], ["Workflow", "#speed"], ["FAQ", "#faq"]]} />
+        <FooterCol title="Product" links={[["Styles", "#styles"], ["How it works", "#ways"], ["Workflow", "#speed"], ["FAQ", "#faq"]]} />
         <FooterCol title="Start" links={[["Start editing", "/app"], ["Sign in", "/login"]]} />
       </div>
       <div aria-hidden className="mk-wordmark-giant pointer-events-none mt-6 select-none text-center" style={{ marginBottom: "-0.22em" } as CSSProperties}>

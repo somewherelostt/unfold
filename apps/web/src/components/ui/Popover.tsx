@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactElement, type ReactNode } from "react";
 import "./ui.css";
 
 /**
@@ -28,10 +28,18 @@ export function Popover({
   const open = controlled ?? inner;
   const set = (o: boolean) => (onOpenChange ? onOpenChange(o) : setInner(o));
   const root = useRef<HTMLDivElement>(null);
+  const triggerId = useId();
+  const contentId = useId();
+  const close = () => set(false);
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (wasOpen.current && !open && document.activeElement === document.body) root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    wasOpen.current = open;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const down = (e: PointerEvent) => !root.current?.contains(e.target as Node) && set(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && set(false);
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { set(false); root.current?.querySelector<HTMLButtonElement>("button")?.focus(); } };
     window.addEventListener("pointerdown", down);
     window.addEventListener("keydown", key);
     return () => {
@@ -42,15 +50,20 @@ export function Popover({
   }, [open]);
   return (
     <div ref={root} className="relative">
-      {trigger({ open, toggle: () => set(!open) })}
+      {(() => {
+        const control = trigger({ open, toggle: () => set(!open) });
+        return isValidElement(control) ? cloneElement(control as ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>, { id: triggerId, "aria-expanded": open, "aria-controls": open ? contentId : undefined, "aria-haspopup": "dialog" }) : control;
+      })()}
       {open && (
         <div
           role="dialog"
+          id={contentId}
+          aria-labelledby={triggerId}
           className={`ui-pop absolute z-50 rounded-[14px] bg-surface-1 p-2 shadow-[var(--shadow-raised)] ${
             align === "end" ? "right-0 origin-top-right" : align === "start" ? "left-0 origin-top-left" : "left-1/2 -translate-x-1/2 origin-top"
           } ${side === "bottom" ? "top-full mt-2" : "bottom-full mb-2"} ${className}`}
         >
-          {children(() => set(false))}
+          {children(close)}
         </div>
       )}
     </div>
@@ -62,7 +75,7 @@ export function MenuItem({ hint, selected, className = "", children, ...p }: But
   return (
     <button
       type="button"
-      role="menuitem"
+      aria-pressed={selected}
       {...p}
       className={`flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-[8px] px-2 text-left text-[13px] transition-colors hover:bg-surface-3 disabled:opacity-40 ${selected ? "text-text-1" : "text-text-2 hover:text-text-1"} ${className}`}
     >

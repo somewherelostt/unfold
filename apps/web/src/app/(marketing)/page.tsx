@@ -2,20 +2,21 @@ import type { Metadata } from "next";
 import "@/components/marketing/marketing.css";
 import { Features } from "@/components/marketing/Features";
 import { Hero, Nav } from "@/components/marketing/Hero";
+import { LandingHandoff } from "@/components/marketing/LandingHandoff";
 import { RawToEdit } from "@/components/marketing/RawToEdit";
 import { Faq, FinalCta, Footer } from "@/components/marketing/Sections";
 import { Ways } from "@/components/marketing/Ways";
 import { Speed } from "@/components/marketing/Speed";
 
 export const metadata: Metadata = {
-  title: "Unfold · Raw footage in. Viral edit out.",
+  title: "Unfold · Raw footage in. Your story, edited.",
   description:
-    "Turn raw footage into one polished edit with captions, beat-synced music, transitions and sound effects, powered by Kimi K3.1 Pro on Cerebras.",
+    "Turn raw footage into one edit shaped around your clip and brief. Refine the pacing, captions and sound in chat, then export an MP4.",
 };
 
 export default function Home() {
   return (
-    <div data-theme="light" className="mk-root mk-light flex-1 overflow-x-clip">
+    <LandingHandoff>
       <Nav />
       <main>
         <Hero />
@@ -27,6 +28,6 @@ export default function Home() {
         <FinalCta />
       </main>
       <Footer />
-    </div>
+    </LandingHandoff>
   );
 }

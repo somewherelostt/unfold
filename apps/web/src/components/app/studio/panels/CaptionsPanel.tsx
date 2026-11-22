@@ -27,7 +27,8 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
   const lit = Math.max(0, line.findIndex((w) => w.emphasis));
   const wpl = overrides.wordsPerLine ?? Math.max(1, Math.min(4, Math.round(c.chunks.reduce((a, x) => a + x.words.length, 0) / Math.max(1, c.chunks.length))));
   return (
-    <div className="space-y-5 px-4 pb-4">
+    <div className="uf-tool-content space-y-5 px-4 pb-4">
+      <p className="uf-tool-intro">Make speech easy to follow. Choose a look, then refine the details.</p>
       <div className="grid grid-cols-2 gap-2">
         {PRESETS.map((p) => {
           const look = resolveCaptionDesign({ preset: p.id });
@@ -62,10 +63,10 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
           <Toggle label="Captions" checked={c.enabled} onChange={(v) => set({ captions: v })} />
         </Row>
         <Row label="Words per line">
-          <Segmented mono className="w-[148px]" options={["1", "2", "3", "4"].map((v) => ({ value: v, label: v }))} value={String(wpl)} onChange={(v) => set({ wordsPerLine: Number(v) })} />
+          <Segmented label="Words per line" mono className="w-[148px]" options={["1", "2", "3", "4"].map((v) => ({ value: v, label: v }))} value={String(wpl)} onChange={(v) => set({ wordsPerLine: Number(v) })} />
         </Row>
         <Row label="Position">
-          <Segmented
+          <Segmented label="Caption position"
             className="w-[184px]"
             options={[
               { value: "upper", label: "Top" },
@@ -81,24 +82,24 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
         </Row>
       </div>
 
-      <div className="space-y-3">
-        <SectionLabel>Typography</SectionLabel>
+      <details className="uf-tool-disclosure">
+        <summary>Typography &amp; motion</summary><div className="space-y-3 pt-4">
         <Row label="Typeface">
-          <Segmented className="w-[196px]" value={design.typeface} options={[{ value: "sans", label: "Sans" }, { value: "serif", label: "Serif" }, { value: "rounded", label: "Soft" }, { value: "condensed", label: "Tall" }]} onChange={(v) => setDesign({ typeface: v })} />
+          <Segmented label="Caption typeface" className="w-[196px]" value={design.typeface} options={[{ value: "sans", label: "Sans" }, { value: "serif", label: "Serif" }, { value: "rounded", label: "Soft" }, { value: "condensed", label: "Tall" }]} onChange={(v) => setDesign({ typeface: v })} />
         </Row>
         <Slider label="Size" value={design.fontScale} min={0.65} max={1.3} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setDesign({ fontScale: v })} />
         <Row label="Weight">
-          <Segmented className="w-[196px]" value={design.weight} options={[{ value: "regular", label: "Regular" }, { value: "medium", label: "Medium" }, { value: "bold", label: "Bold" }]} onChange={(v) => setDesign({ weight: v })} />
+          <Segmented label="Caption weight" className="w-[196px]" value={design.weight} options={[{ value: "regular", label: "Regular" }, { value: "medium", label: "Medium" }, { value: "bold", label: "Bold" }]} onChange={(v) => setDesign({ weight: v })} />
         </Row>
         <Row label="Emphasis">
-          <Segmented className="w-[168px]" value={design.highlightMode} options={[{ value: "none", label: "None" }, { value: "word", label: "Word" }, { value: "background", label: "Fill" }]} onChange={(v) => setDesign({ highlightMode: v })} />
+          <Segmented label="Caption emphasis" className="w-[168px]" value={design.highlightMode} options={[{ value: "none", label: "None" }, { value: "word", label: "Word" }, { value: "background", label: "Fill" }]} onChange={(v) => setDesign({ highlightMode: v })} />
         </Row>
         <Row label="Motion">
-          <Segmented className="w-[196px]" value={design.animation} options={[{ value: "none", label: "None" }, { value: "fade", label: "Fade" }, { value: "rise", label: "Rise" }, { value: "pop", label: "Pop" }]} onChange={(v) => setDesign({ animation: v })} />
+          <Segmented label="Caption motion" className="w-[196px]" value={design.animation} options={[{ value: "none", label: "None" }, { value: "fade", label: "Fade" }, { value: "rise", label: "Rise" }, { value: "pop", label: "Pop" }]} onChange={(v) => setDesign({ animation: v })} />
         </Row>
         <Row label="Outline"><Toggle label="Caption outline" checked={design.outline} onChange={(v) => setDesign({ outline: v })} /></Row>
         <Row label="Text colour"><input type="color" aria-label="Caption text colour" value={design.textColor} onChange={(e) => setDesign({ textColor: e.target.value })} className="h-7 w-9 cursor-pointer rounded-md bg-transparent p-0" /></Row>
-      </div>
+      </div></details>
 
       <div>
         <SectionLabel className="mb-2">Highlight</SectionLabel>
@@ -122,7 +123,7 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="uf-control-row flex items-center justify-between gap-3">
       <span className="text-[13px] text-text-2">{label}</span>
       {children}
     </div>

@@ -5,7 +5,6 @@
  * 360px agent chat · 220px timeline that stops at the chat · alternate versions drawer.
  */
 import type { EditPlan } from "@unfold/core";
-import { sampleAnalysis } from "@unfold/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -15,7 +14,7 @@ import { Button, buttonClasses } from "@/components/ui/Button";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { MenuItem, Popover } from "@/components/ui/Popover";
 import { Shimmer } from "@/components/ui/Shimmer";
-import { SpeedBadge } from "@/components/ui/SpeedBadge";
+import { BrandMark } from "@/components/ui/BrandLogo";
 import {
   IconBack,
   IconCaptions,
@@ -51,22 +50,15 @@ import { ReviewPanel } from "./panels/ReviewPanel";
 import type { PanelProps } from "./panels/types";
 
 const SECTIONS = [
+  { key: "media", label: "Media", icon: IconMedia, panel: MediaPanel },
   { key: "captions", label: "Captions", icon: IconCaptions, panel: CaptionsPanel },
   { key: "music", label: "Music", icon: IconMusic, panel: MusicPanel },
   { key: "sfx", label: "Sound FX", icon: IconSpeaker, panel: SfxPanel, title: "Sound effects" },
   { key: "transitions", label: "Transitions", icon: IconTransition, panel: TransitionsPanel },
   { key: "style", label: "Style", icon: IconStyle, panel: StylePanel },
-  { key: "media", label: "Media", icon: IconMedia, panel: MediaPanel },
   { key: "review", label: "Review", icon: IconCheck, panel: ReviewPanel },
 ] as const;
 type SectionKey = (typeof SECTIONS)[number]["key"];
-
-// Layout (px)
-const RAIL = 56;
-const GAP = 8;
-const PANEL_W = 320;
-const TL_H = 264;
-const DRAWER_H = 196;
 
 /* ------------------------------------------------------------------ editing */
 
@@ -138,7 +130,7 @@ function Generating() {
     return (
       <Centered>
         <h1 className="font-display text-[32px] leading-[38px]">Nothing in progress</h1>
-        <p className="text-[13px] text-text-2">Drop in a clip and Unfold edits it.</p>
+        <p className="text-[13px] text-text-2">Upload your footage to create an edit.</p>
         <Link href="/app" className={buttonClasses("primary")}>
           Start an edit
         </Link>
@@ -159,9 +151,10 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
     useStore((s) => {
       const vid = plan?.source.videoId ?? s.project.analysis?.videoId;
       return (vid && s.analyses[vid]?.frames) || (s.project.analysis && (!vid || s.project.analysis.videoId === vid) ? s.project.analysis.frames : undefined);
-    }) ?? sampleAnalysis.frames;
+    }) ?? [];
   const hasAlts = useStore((s) => (id ? !!s.alts[s.altRoot[id] ?? id] : false));
   const [section, setSection] = useState<SectionKey | null>(null);
+  const [compactView, setCompactView] = useState<"preview" | "timeline" | "agent">("preview");
   const [selectedBrollId, selectBroll] = useState<string>();
   const [altChoice, setAltOpen] = useState<boolean | null>(null);
   const altOpen = !generating && (altChoice ?? hasAlts);
@@ -197,8 +190,6 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
     return () => window.removeEventListener("keydown", onKey);
   }, [ready, id]);
 
-  const stageLeft = RAIL + GAP + (panelOpen ? PANEL_W + GAP : 0);
-  const stageBottom = TL_H + GAP * 2 + (altOpen ? DRAWER_H + GAP : 0);
   const panelProps: PanelProps | null =
     ready && id && entry && plan
       ? {
@@ -220,13 +211,14 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
 
   return (
     <div
-      className="relative flex min-h-dvh flex-col bg-bg xl:h-dvh xl:overflow-hidden"
-      style={{ ["--stage-l" as string]: `${stageLeft}px`, ["--stage-b" as string]: `${stageBottom}px`, ["--preview-height" as string]: previewRatio >= 1 ? `calc((100vw - 32px) / ${previewRatio} + 100px)` : "68dvh" }}
+      className={cx("uf-studio", panelOpen && "has-inspector", altOpen && "has-alternates")}
+      data-view={compactView}
+      style={{ ["--preview-height" as string]: previewRatio >= 1 ? `calc((100vw - 32px) / ${previewRatio} + 100px)` : "58dvh" }}
     >
       <TopBar id={id} entry={entry} plan={plan} generating={generating} run={run} altOpen={altOpen} onAlternates={() => (altOpen ? setAltOpen(false) : openAlternates())} />
 
       {/* Rail */}
-      <nav aria-label="Editing tools" className="chrome z-20 flex shrink-0 items-center gap-0.5 overflow-x-auto px-2 py-1 shadow-[inset_0_-1px_0_var(--hairline)] sm:gap-1 xl:absolute xl:bottom-0 xl:left-0 xl:top-12 xl:w-14 xl:flex-col xl:px-0 xl:pt-2 xl:shadow-none">
+      <nav aria-label="Editing tools" className="uf-tool-rail chrome">
         {SECTIONS.map((s) => {
           const Icon = s.icon;
           const on = section === s.key && panelOpen;
@@ -236,8 +228,9 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
               type="button"
               disabled={!ready}
               aria-pressed={on}
+              aria-expanded={on}
               aria-controls={on ? "studio-panel" : undefined}
-              onClick={() => setSection(on ? null : s.key)}
+              onClick={() => { setSection(on ? null : s.key); setCompactView("preview"); }}
               className={cx(
                 "flex w-11 shrink-0 flex-col items-center gap-1 rounded-[10px] py-2 text-[10px] leading-3 transition-colors disabled:opacity-35 sm:w-12",
                 on ? "bg-surface-2 text-text-1 shadow-[inset_0_0_0_1px_var(--hairline-strong)]" : "text-text-3 hover:bg-surface-1 hover:text-text-1",
@@ -250,6 +243,17 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
         })}
       </nav>
 
+      <nav className="uf-compact-views" aria-label="Workspace views">
+        {(["preview", "timeline", "agent"] as const).map((view) => <button type="button" key={view} aria-pressed={compactView === view} onClick={() => { setCompactView(view); if (view === "agent") playerRef.current?.pause(); }}>{view === "preview" ? "Preview" : view === "timeline" ? "Timeline" : "Agent"}</button>)}
+      </nav>
+
+      {/* Stage */}
+      <section aria-label="Edit preview" className="uf-stage">
+        <span className="uf-preview-label">Preview <span>{plan?.aspect ?? projectAspect}</span></span>
+        <Stage plan={plan} ratio={previewRatio} frames={frames} playerRef={playerRef} showPlayer={showPlayer} generating={generating} run={run} />
+        {plan && showPlayer && <PillToolbar id={id} plan={plan} playerRef={playerRef} editable={ready} />}
+      </section>
+
       {/* Floating side panel */}
       {panelOpen && active && panelProps && (
         <Panel
@@ -257,12 +261,12 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
           id="studio-panel"
           role="region"
           aria-label={"title" in active ? active.title : active.label}
-          className="uf-panel-in z-20 m-2 flex max-h-[460px] min-h-0 flex-col overflow-hidden xl:absolute xl:left-16 xl:top-14 xl:m-0 xl:max-h-none xl:w-80 xl:[bottom:var(--stage-b)]"
+          className="uf-inspector uf-panel-in"
         >
           <PanelHeader
             title={"title" in active ? active.title : active.label}
             actions={
-              <Button size="icon-sm" variant="ghost" aria-label="Close panel" onClick={() => setSection(null)}>
+              <Button size="icon-sm" variant="ghost" aria-label="Close panel" onClick={() => { setSection(null); document.querySelector<HTMLButtonElement>(`[aria-label="Editing tools"] button[aria-expanded="true"]`)?.focus(); }}>
                 <IconX size={14} />
               </Button>
             }
@@ -273,11 +277,7 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
         </Panel>
       )}
 
-      {/* Stage */}
-      <section aria-label="Edit preview" className="relative z-10 flex h-[min(var(--preview-height),620px)] min-h-[320px] flex-col items-center justify-center px-4 pb-16 pt-4 transition-[left,bottom] duration-[var(--dur-panel)] ease-[var(--ease)] xl:absolute xl:right-[376px] xl:top-12 xl:h-auto xl:min-h-0 xl:pb-[68px] xl:pt-5 xl:[bottom:var(--stage-b)] xl:[left:var(--stage-l)]">
-        <Stage plan={plan} ratio={previewRatio} frames={frames} playerRef={playerRef} showPlayer={showPlayer} generating={generating} run={run} />
-        {plan && showPlayer && <PillToolbar id={id} plan={plan} playerRef={playerRef} editable={ready} />}
-      </section>
+      {ready && plan && !panelOpen && <section className="uf-compact-overview" aria-label="Edit overview"><div className="flex items-center justify-between gap-3"><h2>About this edit</h2><span className="uf-meta">{plan.durationSec.toFixed(1)}s · {plan.clips.length} {plan.clips.length === 1 ? "clip" : "clips"}</span></div><p>{plan.rationale}</p><Button variant="ghost" size="sm" className="mt-2" onClick={() => setCompactView("agent")}>Ask for a change <span aria-hidden>→</span></Button></section>}
 
       {/* Alternates drawer */}
       {altOpen && id && (
@@ -285,19 +285,21 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
           id={id}
           frames={frames}
           onClose={() => setAltOpen(false)}
-          className="z-20 m-2 h-[196px] shrink-0 xl:absolute xl:bottom-[280px] xl:left-16 xl:right-[376px] xl:m-0"
+          className="uf-alternates"
         />
       )}
 
       {/* Timeline */}
-      <Panel aria-label="Edit timeline" className="z-20 m-2 h-[264px] shrink-0 overflow-x-auto overflow-y-hidden xl:absolute xl:bottom-2 xl:left-16 xl:right-[376px] xl:m-0">
+      <Panel aria-label="Edit timeline" className="uf-timeline">
         <div className="h-full min-w-[720px]">
-          <Timeline plan={plan} frames={frames} reveal={generating ? Math.min(4, reveal) : 4} playerRef={showPlayer ? playerRef : undefined} onSelectBroll={(shotId) => { selectBroll(shotId); setSection("media"); }} />
+          {generating && !plan && !isActive(run) ? <div className="flex h-full max-w-[calc(100vw-64px)] items-center justify-center px-5 text-center text-[13px] text-text-3">No timeline was created. Your source and brief are preserved.</div> : <Timeline plan={plan} frames={frames} reveal={generating ? Math.min(4, reveal) : 4} playerRef={showPlayer ? playerRef : undefined} onSelectBroll={(shotId) => { selectBroll(shotId); setSection("media"); setCompactView("preview"); }} />}
         </div>
       </Panel>
 
+      {compactView === "timeline" && plan && showPlayer && <div className="uf-compact-playback"><PillToolbar id={id} plan={plan} playerRef={playerRef} editable={ready} /></div>}
+
       {/* Chat */}
-      <Panel className="z-20 m-2 flex h-[500px] min-h-0 shrink-0 flex-col overflow-hidden xl:absolute xl:bottom-2 xl:right-2 xl:top-14 xl:m-0 xl:h-auto xl:w-[360px]">
+      <Panel className="uf-agent-panel">
         <Chat id={generating ? undefined : id} plan={plan} generating={generating} run={run} reveal={reveal} onAlternates={openAlternates} />
       </Panel>
     </div>
@@ -307,7 +309,7 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
 /* ------------------------------------------------------------------ pieces */
 
 function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-3 bg-bg px-4 text-center">{children}</div>;
+  return <div className="uf-recovery"><Link href="/app" aria-label="Unfold edits"><BrandMark width={36} height={36} /></Link><div>{children}</div></div>;
 }
 
 function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { id?: string; entry?: PlanEntry; plan?: EditPlan; generating?: boolean; run?: Run; altOpen: boolean; onAlternates: () => void }) {
@@ -316,24 +318,24 @@ function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { i
   const ready = !generating && !!id && !!entry;
   const name = entry?.name ?? (fileName ? fileName.replace(/\.[^.]+$/, "") : "Untitled edit");
   return (
-    <header className="frosted chrome z-30 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-2 py-1 shadow-[inset_0_-1px_0_var(--hairline)] xl:absolute xl:inset-x-0 xl:top-0 xl:h-12 xl:grid-cols-[1fr_auto_1fr] xl:py-0">
-      <div className="flex min-w-0 items-center gap-1">
-        <Link href="/app" aria-label="Back" className={buttonClasses("ghost", "icon")}>
-          <IconBack />
+    <header className="uf-studio-topbar chrome">
+      <div className="uf-project-heading">
+        <Link href="/app" aria-label="Back to edits" className="uf-studio-back">
+          <IconBack /><BrandMark width={20} height={20} />
         </Link>
         {ready ? (
           <input
             value={name}
             onChange={(e) => actions.rename(id, e.target.value)}
             aria-label="Project name"
-            className="h-8 min-w-0 max-w-[240px] flex-1 rounded-[8px] bg-transparent px-2 text-[13px] font-medium text-text-1 outline-none hover:bg-surface-2 focus:bg-surface-2"
+            className="h-8 min-w-0 max-w-[360px] flex-1 rounded-[8px] bg-transparent px-2 text-[13px] font-medium text-text-1 outline-none hover:bg-surface-2 focus:bg-surface-2"
           />
         ) : (
           <span className="truncate px-2 text-[13px] font-medium text-text-2">{name}</span>
         )}
       </div>
 
-      <div className="order-3 col-span-2 flex items-center justify-center gap-1 pb-1 xl:order-none xl:col-span-1 xl:pb-0">
+      <div className="uf-format-actions">
         <Popover
           align="center"
           className="w-40"
@@ -360,29 +362,26 @@ function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { i
             ))
           }
         </Popover>
-        <Button variant="ghost" size="sm" disabled={!ready} aria-pressed={altOpen} onClick={onAlternates} className={cx("h-8", altOpen && "text-text-1")}>
-          <IconGrid size={14} /> Alternate versions
+        <Button variant="ghost" size="sm" disabled={!ready} aria-label="Alternate versions" aria-pressed={altOpen} onClick={onAlternates} className={cx("h-8", altOpen && "text-text-1")}>
+          <IconGrid size={14} /><span className="hidden sm:inline">Alternate versions</span><span className="sm:hidden">Versions</span>
         </Button>
       </div>
 
-      <div className="flex items-center justify-end gap-1.5">
+      <div className="uf-save-actions">
         {ready && id && entry && plan && <SaveButton id={id} entry={entry} plan={plan} />}
         {generating && run && isActive(run) && (
           <Button variant="ghost" size="sm" className="h-8" onClick={() => actions.cancel("main")}>
             Cancel
           </Button>
         )}
+        <div className="uf-history-actions">
         <Button variant="ghost" size="icon" aria-label="Undo" title="Undo (⌘Z)" disabled={!ready || !entry?.past.length} onClick={() => id && actions.undo(id)}>
           <IconUndo />
         </Button>
         <Button variant="ghost" size="icon" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!ready || !entry?.future.length} onClick={() => id && actions.redo(id)}>
           <IconRedo />
         </Button>
-        {entry?.stats && (
-          <span className="hidden px-1.5 xl:inline-flex">
-            <SpeedBadge seconds={entry.stats.genMs / 1000} tps={entry.stats.tps} model={false} />
-          </span>
-        )}
+        </div>
         <ExportButton key={id ?? "generating"} id={id} serverId={ready ? entry?.serverId : undefined} plan={plan} disabled={!ready} />
       </div>
     </header>
@@ -393,7 +392,7 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
   const failed = generating && run && (run.status === "error" || run.status === "cancelled") && !plan;
   return (
     <div className="relative flex h-full w-full items-center justify-center" style={{ containerType: "size" }}>
-      <div className="relative overflow-hidden rounded-[14px] bg-black shadow-[0_0_0_1px_var(--hairline),0_24px_64px_-16px_rgb(0_0_0/.7)]" style={{ width: `min(100cqw, calc(100cqh * ${ratio}))`, height: `min(100cqh, calc(100cqw / ${ratio}))` }}>
+      <div className={cx("relative overflow-hidden rounded-[14px] bg-black shadow-[0_0_0_1px_var(--hairline),0_24px_64px_-16px_rgb(0_0_0/.7)]", failed && "uf-generation-error")} style={failed ? { width: "100%", maxWidth: 520 } : { width: `min(100cqw, calc(100cqh * ${ratio}))`, height: `min(100cqh, calc(100cqw / ${ratio}))` }}>
         {showPlayer && plan ? (
           <>
             <PlanPlayer ref={playerRef} plan={plan} muted={generating} autoPlay={generating} />
@@ -403,12 +402,12 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {frames[0] && <img src={frames[Math.min(1, frames.length - 1)].url} alt="" className="uf-blur-frame absolute inset-0 size-full object-cover" />}
-            <div className="absolute inset-0 grid place-items-center p-6 text-center">
+            <div className={cx("grid place-items-center p-6 text-center", !failed && "absolute inset-0")}>
               {failed ? (
                 <div className="space-y-3">
                   <div className="font-display text-[24px] leading-[30px] text-white">{generationErrorTitle(run!)}</div>
                   {run!.error && <p className="text-[12px] text-white/70">{run!.error}</p>}
-                  <div className="flex justify-center gap-2">
+                  <div className="flex flex-wrap justify-center gap-2">
                     <Link href="/app" className={buttonClasses("secondary", "sm")}>
                       Back
                     </Link>
@@ -418,7 +417,7 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
                   </div>
                 </div>
               ) : (
-                <span className="rounded-full bg-black/40 px-3 py-1 text-[12px] text-white/80 backdrop-blur">{plan ? "Assembling your edit…" : "Planning your edit…"}</span>
+                <span role="status" className="rounded-full bg-black/60 px-3 py-2 text-[12px] text-white/90">{plan ? "Your edit is ready. Opening the preview…" : run?.status === "preparing" ? `${run.phase ?? "Preparing your source"}…` : "Waiting for your edit…"}</span>
               )}
             </div>
           </>

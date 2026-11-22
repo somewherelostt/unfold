@@ -19,7 +19,7 @@ function run(entry, args, cwd = root) {
 if (!run(next, ["typegen"], web)) process.exit(1);
 
 let passed = true;
-for (const directory of ["packages/core", "packages/agent", "packages/video", "services/media", "services/jobs", "apps/web"]) {
+for (const directory of ["packages/core", "packages/agent", "packages/video", "services/media", "services/jobs", "services/publishing", "apps/web"]) {
   const config = path.join(root, directory, "tsconfig.json");
   if (!existsSync(config)) {
     throw new Error(`Missing TypeScript configuration: ${directory}`);

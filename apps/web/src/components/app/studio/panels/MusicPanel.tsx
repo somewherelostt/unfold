@@ -23,15 +23,16 @@ export function MusicPanel({ plan, base, library, set }: PanelProps) {
   const drop = cur?.dropAt != null && current ? cur.dropAt - current.trackStart : null;
 
   return (
-    <div className="space-y-5 px-4 pb-4">
+    <div className="uf-tool-content space-y-5 px-4 pb-4">
+      {!plan.music && <p className="uf-tool-intro">Your original audio is kept. Add music only when it helps the story.</p>}
       <Row label="Music">
         <Toggle label="Music" checked={!!plan.music} onChange={(v) => set({ music: v })} />
       </Row>
       <div>
-        <SectionLabel className="mb-2">Picked for your clip</SectionLabel>
+        <SectionLabel className="mb-2">{cur ? "Music for this edit" : "Add music · optional"}</SectionLabel>
         <div className="space-y-1.5">
           {picked.map((m) => (
-            <TrackRow key={m.id} m={m} active={m.id === current?.trackId} big playing={audio.playing === m.id} onPlay={() => audio.toggle(m)} onPick={() => set({ trackId: m.id, music: true })} />
+            <TrackRow key={m.id} m={m} active={!!plan.music && m.id === current?.trackId} big playing={audio.playing === m.id} onPlay={() => audio.toggle(m)} onPick={() => set({ trackId: m.id, music: true })} />
           ))}
         </div>
         {current && plan.music && (

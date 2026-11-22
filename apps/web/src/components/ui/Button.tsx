@@ -9,7 +9,7 @@ export type ButtonVariant = "primary" | "secondary" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const BASE =
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] text-[13px] font-medium leading-none transition-[background-color,color,box-shadow,opacity] duration-150 ease-[var(--ease)] disabled:pointer-events-none disabled:opacity-40 [&_svg]:shrink-0 cursor-pointer";
+  "ui-button inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] text-[13px] font-medium leading-none transition-[background-color,color,box-shadow,opacity] duration-150 ease-[var(--ease)] disabled:pointer-events-none disabled:opacity-40 [&_svg]:shrink-0 cursor-pointer";
 const SIZE: Record<ButtonSize, string> = {
   sm: "h-8 px-3",
   md: "h-9 px-3.5",

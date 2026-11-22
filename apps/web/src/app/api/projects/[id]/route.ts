@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth/server";
 import { storage } from "@/server/store";
 import { apiError } from "@/server/api-errors";
 import { getJobsApi, jobApiError } from "@/server/jobs";
+import { getPublishingRuntime } from "@/server/publishing/runtime";
+import { PublishingError } from "../../../../../../../services/publishing/src/types.ts";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Context) {
@@ -18,8 +20,19 @@ export async function DELETE(_req: Request, ctx: Context) {
   if (user instanceof Response) return user;
   try {
     const projectId = (await ctx.params).id;
-    return Response.json(await storage.deleteProject(user, projectId, async (ids) => {
+    await storage.getProject(user, projectId);
+    const publishing = getPublishingRuntime();
+    const gate = await publishing.beginProjectDeletion(user, projectId);
+    if (!gate.ready) return Response.json({
+      error: "A publication needs verification before this project can be removed.", code: "PUBLICATION_UNRESOLVED",
+    }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const result = await storage.deleteProject(user, projectId, async (ids) => {
       await (await getJobsApi()).drainProject(user, projectId, ids);
-    }));
-  } catch (error) { return jobApiError(error); }
+    });
+    await publishing.finalizeProjectDeletion(user, projectId);
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof PublishingError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
+    return jobApiError(error);
+  }
 }

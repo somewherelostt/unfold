@@ -1,7 +1,6 @@
 "use client";
 /**
- * Agent chat (360px). Agent replies: "Worked for 0.9s" with a collapsible step list, a one-line summary,
- * a change card (Keep / Revert) and the speed line. In generating mode it shows the live run instead.
+ * Agent history and actual run state. Provider metrics stay in optional run details.
  */
 import type { EditPlan } from "@unfold/core";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -16,7 +15,7 @@ import { cx } from "../ui";
 
 const SUGGESTIONS = [
   { label: "Faster cuts", prompt: "Faster cuts, snappier pacing" },
-  { label: "Less sound effects", prompt: "Less sound effects" },
+  { label: "Fewer sound effects", prompt: "Fewer sound effects" },
   { label: "Make it 15s", prompt: "Make it 15 seconds" },
   { label: "Bigger captions", prompt: "Bigger, bolder captions" },
 ];
@@ -29,7 +28,7 @@ export function Chat({ id, plan, generating, run, reveal = 0, onAlternates }: { 
   const disabled = generating || !id || pending;
 
   useEffect(() => {
-    list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
+    list.current?.scrollTo({ top: list.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [chat.length, pending, reveal, run?.status, run?.log?.length]);
 
   const send = (msg: string) => {
@@ -47,11 +46,10 @@ export function Chat({ id, plan, generating, run, reveal = 0, onAlternates }: { 
           <span className="relative size-2 rounded-full bg-agent" />
         </span>
         <span className="text-[13px] font-medium">Unfold agent</span>
-        <span className="truncate text-[12px] text-text-3">Kimi K3.1 Pro on Cerebras</span>
       </div>
 
       <div ref={list} className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
-        {generating && run ? <LiveRun run={run} plan={plan} reveal={reveal} /> : chat.map((m) => (m.role === "user" ? <UserMsg key={m.id} text={m.text} /> : <AgentMsg key={m.id} id={id!} msg={m} />))}
+        {generating && run ? <LiveRun run={run} plan={plan} reveal={reveal} /> : chat.map((m, index) => (m.role === "user" ? <UserMsg key={m.id} text={m.text} /> : <AgentMsg key={m.id} id={id!} msg={m} initialPlan={index === 0 && !m.change ? plan : undefined} />))}
         {!generating && chat.length === 0 && plan && <p className="text-[13px] text-text-2">{plan.rationale} Tell me what to change.</p>}
       </div>
 
@@ -86,7 +84,7 @@ export function Chat({ id, plan, generating, run, reveal = 0, onAlternates }: { 
                   send(text);
                 }
               }}
-              placeholder={generating ? "Unfold is editing…" : "Ask for a change…"}
+              placeholder={generating ? "Your request is in progress…" : "Ask for a change…"}
               className="max-h-28 min-h-8 flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] leading-5 text-text-1 outline-none placeholder:text-text-3 focus-visible:shadow-none"
             />
             {pending && id ? <button type="button" aria-label="Cancel remix" onClick={() => actions.cancelRemix(id)} className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-3 text-text-1"><span className="size-2 rounded-[2px] bg-current" /></button> : <button
@@ -132,7 +130,7 @@ function Steps({ workedMs, steps, open: initial = false }: { workedMs?: number; 
   return (
     <div className="mb-1.5">
       <button type="button" aria-expanded={steps?.length ? open : undefined} onClick={() => steps?.length && setOpen((o) => !o)} className="flex items-center gap-1 text-[12px] text-text-3 hover:text-text-2">
-        Worked for <span className="tabular font-mono">{secs(workedMs)}</span>
+        Elapsed <span className="tabular font-mono">{secs(workedMs)}</span>
         {steps?.length ? <IconChevronRight size={12} className={cx("transition-transform duration-150", open && "rotate-90")} /> : null}
       </button>
       {open && steps?.length ? (
@@ -151,12 +149,13 @@ function Steps({ workedMs, steps, open: initial = false }: { workedMs?: number; 
   );
 }
 
-function AgentMsg({ id, msg }: { id: string; msg: Extract<ChatMsg, { role: "agent" }> }) {
+function AgentMsg({ id, msg, initialPlan }: { id: string; msg: Extract<ChatMsg, { role: "agent" }>; initialPlan?: EditPlan }) {
   if (msg.pending) return <Pending startedAt={msg.startedAt} draft={msg.draft} />;
   return (
     <div className="uf-rise">
       <Steps workedMs={msg.workedMs} steps={msg.steps} />
-      <p className="text-[13px] leading-5 text-text-1">{msg.text}</p>
+      <p className="text-[13px] leading-5 text-text-1">{initialPlan ? initialPlan.rationale : msg.text}</p>
+      {initialPlan && <p className="mt-2 text-[12px] text-text-3">{initialPlan.durationSec.toFixed(1)}s · {initialPlan.clips.length} {initialPlan.clips.length === 1 ? "clip" : "clips"}</p>}
       {msg.change && (
         <div className="mt-2.5 rounded-[12px] bg-surface-2 p-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
           <ul className="space-y-1">
@@ -190,9 +189,11 @@ function AgentMsg({ id, msg }: { id: string; msg: Extract<ChatMsg, { role: "agen
 
 function Speed({ stats, label }: { stats: ApiStats; label: string }) {
   return (
-    <div className="mt-2">
+    <details className="uf-run-details mt-2">
+      <summary>Run details</summary>
+      <p className="mt-2 text-[11px] text-text-3">Kimi on Cerebras · generation metrics</p>
       <SpeedBadge seconds={stats.genMs / 1000} tps={stats.tps} label={label} model={false} />
-    </div>
+    </details>
   );
 }
 
@@ -215,26 +216,16 @@ function Pending({ startedAt, draft }: { startedAt?: number; draft?: string }) {
   const ms = useTicker(startedAt);
   return (
     <div className="text-[13px]">
-      {draft ? (
-        <Shimmer>
-          Writing the new plan · <span className="tabular font-mono">~{Math.round(draft.length / 4)}</span> tokens
-        </Shimmer>
-      ) : ms > 4000 ? (
-        <Shimmer>
-          Queued at Cerebras · <span className="tabular font-mono">{mmss(ms)}</span>
-        </Shimmer>
-      ) : (
-        <Shimmer>Planning…</Shimmer>
-      )}
+      <Shimmer>{draft ? "Receiving your updated edit…" : "Waiting for your updated edit…"}</Shimmer>
+      <p className="mt-1 text-[12px] text-text-3">Elapsed <span className="tabular font-mono">{mmss(ms)}</span></p>
     </div>
   );
 }
 
-/** The live account of the first edit: prep steps, queue, then one step per track as it fills. */
+/** Only completed preparation and received plan decisions are shown as events. */
 function LiveRun({ run, plan, reveal }: { run: Run; plan?: EditPlan; reveal: number }) {
   const active = isActive(run);
   const elapsed = useTicker(run.startedAt, active);
-  const queuedMs = useTicker(run.queuedAt ?? run.startedAt, active && !run.firstAt);
   const stats = useStore((s) => (run.slots[0] ? s.plans[run.slots[0]]?.stats : undefined));
   const decided = plan ? planSteps(plan).slice(0, reveal) : [];
   const done = !!plan && reveal >= 5 && run.status === "done";
@@ -257,14 +248,14 @@ function LiveRun({ run, plan, reveal }: { run: Run; plan?: EditPlan; reveal: num
         <div className="flex gap-2 text-[12px] leading-[18px]">
           {t((run.queuedAt ?? run.startedAt) - run.startedAt)}
           <Shimmer>
-            Queued at Cerebras · <span className="tabular font-mono">{mmss(queuedMs)}</span>
+            Waiting for your edit…
           </Shimmer>
         </div>
       )}
       {run.status === "generating" && !plan && (
         <div className="flex gap-2 text-[12px] leading-[18px]">
           {t((run.queuedAt ?? run.startedAt) - run.startedAt)}
-          <Shimmer>Planning the edit…</Shimmer>
+          <Shimmer>Receiving your edit…</Shimmer>
         </div>
       )}
       {decided.map((s, i) => (
@@ -274,10 +265,12 @@ function LiveRun({ run, plan, reveal }: { run: Run; plan?: EditPlan; reveal: num
         </div>
       ))}
       {run.warning && <div className="pl-12 text-[12px] text-danger">{run.warning}</div>}
+      {active && <p className="pt-3 text-[12px] text-text-3">Elapsed <span className="tabular font-mono">{mmss(elapsed)}</span> · You can cancel while waiting.</p>}
+      {!active && !plan && run.error && <p role="status" className="pt-3 text-[12px] leading-5 text-text-2">{run.error} Your source and brief are preserved.</p>}
       {done && stats && (
         <div className="uf-rise mt-3 rounded-[12px] bg-surface-2 px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--hairline)]">
           <div className="text-[13px] font-medium text-text-1">Edit ready</div>
-          <SpeedBadge seconds={stats.genMs / 1000} tps={stats.tps} model={false} className="mt-1" />
+          <Speed stats={stats} label="generated in" />
         </div>
       )}
     </div>

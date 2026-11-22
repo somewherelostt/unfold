@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { EditPlan } from "@unfold/core";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { SectionLabel } from "@/components/ui/Panel";
@@ -27,13 +27,12 @@ export function MediaPanel({ id, plan, base, overrides, frames, set, seek, now, 
       setError(""); seek(shot.start);
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't place this cutaway."); }
   }
-  return <div className="space-y-5 px-4 pb-4">
+  return <div className="uf-tool-content space-y-5 px-4 pb-4">
     <div className="flex gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {frames[0] && <img src={frames[0].url} alt="Primary narration clip" className="aspect-[9/16] w-14 shrink-0 rounded-[10px] bg-black object-cover" />}
       <div className="min-w-0 text-[12px] leading-[18px] text-text-2"><div className="text-[13px] font-medium text-text-1">Primary clip · narration</div><p className="mt-1">Supporting shots replace the picture. Your primary audio keeps playing.</p></div>
     </div>
-    <SupportingAssets primaryVideoId={plan.source.videoId} planId={id} onUseAsset={place} />
     {error && <p role="alert" className="text-[12px] text-danger">{error}</p>}
     <section aria-label="Cutaway placements" className="space-y-3">
       <SectionLabel>Cutaways in this edit · {plan.broll?.length ?? 0}</SectionLabel>
@@ -46,6 +45,7 @@ export function MediaPanel({ id, plan, base, overrides, frames, set, seek, now, 
         onRemove={() => set({ broll: shots.filter((b) => b.id !== shot.id), brollDisabled: disabled.filter((s) => s !== shot.id) })}
         onApply={(next) => set({ supporting: assets, broll: shots.map((b) => b.id === shot.id ? next : b) })} />)}
     </section>
+    <SupportingAssets primaryVideoId={plan.source.videoId} planId={id} onUseAsset={place} />
     <details><summary className="cursor-pointer text-[12px] text-text-3">Primary source frames</summary>
       <div className="mt-2 grid grid-cols-4 gap-1.5">{frames.map((f) => <button key={f.t} type="button" aria-label={`Seek to source frame at ${f.t.toFixed(1)} seconds`} onClick={() => { const c = plan.clips.find((c) => f.t >= c.srcStart && f.t < c.srcEnd); if (c) seek(c.start + (f.t - c.srcStart) / c.speed); }} className="relative">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -60,6 +60,8 @@ function Placement({ shot, index, plan, disabled, selected, onApply, onRemove, o
   shot: BrollShot; index: number; plan: EditPlan; disabled: boolean; selected: boolean;
   onApply: (shot: BrollShot) => void; onRemove: () => void; onToggle: (v: boolean) => void; onSeek: () => void;
 }) {
+  const placement = useRef<HTMLElement>(null);
+  useEffect(() => { if (selected) placement.current?.scrollIntoView({ block: "nearest", behavior: "instant" }); }, [selected]);
   const [assetId, setAsset] = useState(shot.assetId);
   const [start, setStart] = useState(String(shot.start));
   const [duration, setDuration] = useState(String(Number((shot.end - shot.start).toFixed(6))));
@@ -76,7 +78,7 @@ function Placement({ shot, index, plan, disabled, selected, onApply, onRemove, o
       onApply(next); setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't update this cutaway."); }
   }
-  return <article aria-label={`Cutaway ${index + 1}`} className={cx("space-y-2.5 rounded-[10px] bg-surface-2 p-3", selected && "ring-1 ring-accent", disabled && "opacity-70")}>
+  return <article ref={placement} aria-label={`Cutaway ${index + 1}`} className={cx("space-y-2.5 rounded-[10px] bg-surface-2 p-3", selected && "ring-1 ring-accent", disabled && "opacity-70")}>
     <div className="flex items-center justify-between gap-2"><button type="button" onClick={onSeek} className="text-[12px] font-medium text-text-1">Cutaway {index + 1} · {shot.start.toFixed(1)}–{shot.end.toFixed(1)}s</button><Toggle label={`Enable cutaway ${index + 1}`} checked={!disabled} onChange={onToggle} /></div>
     <p className="text-[11px] leading-4 text-text-3">{shot.purpose} · {shot.reason}</p>
     <label className="block text-[11px] text-text-3">Supporting video<select aria-label={`Video for cutaway ${index + 1}`} value={assetId} onChange={(e) => { setAsset(e.target.value); const a = plan.supporting?.find((a) => a.videoId === e.target.value); setSourceStart(String(a?.frames[0]?.t ?? 0)); setReason(`Creator selected ${a?.name ?? "this supporting video"} for this cutaway.`); }} className="mt-1 h-8 w-full min-w-0 rounded-md bg-surface-1 px-2 text-[12px] text-text-1">{plan.supporting?.map((a) => <option key={a.videoId} value={a.videoId}>{a.name}</option>)}</select></label>
@@ -89,5 +91,5 @@ function Placement({ shot, index, plan, disabled, selected, onApply, onRemove, o
   </article>;
 }
 function Time({ label, value, set, max }: { label: string; value: string; set: (v: string) => void; max: number }) {
-  return <label className="text-[10px] text-text-3">{label}<input type="number" aria-label={label} min={0} max={max} step={0.1} value={value} onChange={(e) => set(e.target.value)} className="mt-1 h-8 w-full min-w-0 rounded-md bg-surface-1 px-2 text-[12px] text-text-1" /></label>;
+  return <label className="text-[11px] leading-4 text-text-3"><span className="block min-h-8">{label} (s)</span><input type="number" aria-label={label} min={0} max={max} step={0.1} value={value} onChange={(e) => set(e.target.value)} className="mt-1 h-8 w-full min-w-0 rounded-md bg-surface-1 px-2 text-[12px] text-text-1" /></label>;
 }

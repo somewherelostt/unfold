@@ -3,7 +3,7 @@ import { useActionState, useState } from "react";
 import { sendCode, verifyCode, type LoginState } from "./actions";
 
 const input =
-  "h-11 w-full rounded-sm border border-hairline-strong bg-surface-2 px-3 text-[13px] text-text-1 placeholder:text-text-3 outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-text-3 focus:ring-2 focus:ring-text-3/20 disabled:opacity-50";
+  "uf-field h-11 w-full";
 const primary =
   "inline-flex h-10 w-full items-center justify-center rounded-sm bg-primary-btn px-4 text-[13px] font-medium text-primary-btn-ink transition-opacity duration-[120ms] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-3 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50";
 
@@ -36,11 +36,13 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
             pattern="[0-9 ]{6,12}"
             maxLength={12}
             required
+            aria-invalid={!!err}
+            aria-describedby={err ? "code-error" : undefined}
             autoFocus
             placeholder="123456"
             className={`${input} font-mono text-[20px] tracking-[0.3em] tabular`}
           />
-          {err ? <p className="text-[13px] text-danger" role="alert">{err}</p> : null}
+          {err ? <p id="code-error" className="text-[13px] text-danger" role="alert">{err}</p> : null}
           <button type="submit" className={primary} disabled={verifying}>
             {verifying ? "Checking…" : "Sign in"}
           </button>
@@ -73,6 +75,8 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
         type="email"
         autoComplete="email"
         required
+        aria-invalid={emailState.step === "email" && !!emailState.error}
+        aria-describedby={emailState.step === "email" && emailState.error ? "email-error" : undefined}
         autoFocus
         defaultValue={email}
         placeholder="you@studio.com"
@@ -80,7 +84,7 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
         disabled={disabled}
       />
       {emailState.step === "email" && emailState.error ? (
-        <p className="text-[13px] text-danger" role="alert">{emailState.error}</p>
+        <p id="email-error" className="text-[13px] text-danger" role="alert">{emailState.error}</p>
       ) : null}
       <button type="submit" className={primary} disabled={sending || disabled}>
         {sending ? "Sending…" : "Email me a sign-in code"}

@@ -1,7 +1,7 @@
 "use client";
 /**
  * Editor timeline (220px): mono ruler, four 40px tracks (video with transition diamonds and zoom marks,
- * caption word chips, music waveform with beat ticks, SFX pills), downbeat lines through every track,
+ * caption word chips, music region with actual beat ticks, SFX pills), downbeat lines through every track,
  * an accent playhead with a time pill. `reveal` (0–4) fills tracks left → right while the edit is planned.
  */
 import type { EditPlan } from "@unfold/core";
@@ -26,18 +26,6 @@ const clock = (t: number) => {
   const s = t - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 };
-
-/** Deterministic pseudo-waveform for a track id (bars 0..1). */
-function waveform(seed: string, n: number) {
-  let h = 2166136261;
-  for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  return Array.from({ length: n }, (_, i) => {
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    const r = ((h >>> 0) % 1000) / 1000;
-    const env = 0.55 + 0.45 * Math.sin((i / n) * Math.PI * 3 + 1.2) ** 2;
-    return Math.max(0.12, Math.min(1, env * (0.45 + 0.55 * r)));
-  });
-}
 
 export function Timeline({
   plan,
@@ -83,7 +71,6 @@ export function Timeline({
   const thumb = (srcT: number) => frames.reduce((b, f) => (Math.abs(f.t - srcT) < Math.abs(b.t - srcT) ? f : b), frames[0])?.url;
   const beats = plan.music?.beats ?? [];
   const downbeats = beats.filter((_, i) => i % 4 === 0);
-  const wave = plan.music ? waveform(plan.music.trackId, 140) : [];
 
   const seek = (clientX: number) => {
     const el = area.current;
@@ -219,11 +206,6 @@ export function Timeline({
           <Lane on={reveal > 2}>
             {plan.music && (
               <div className="absolute inset-y-0 left-0 right-0 overflow-hidden rounded-[6px] bg-track-music">
-                <div className="absolute inset-x-1 inset-y-1.5 flex items-center gap-px">
-                  {wave.map((v, i) => (
-                    <span key={i} className="flex-1 rounded-full bg-track-music-wave/70" style={{ height: `${v * 100}%` }} />
-                  ))}
-                </div>
                 {beats.map((b, i) => (
                   <span key={i} className="absolute bottom-0 w-px" style={{ left: pct(b), height: i % 4 === 0 ? "100%" : "35%", background: i % 4 === 0 ? "var(--downbeat)" : "var(--beat)" }} />
                 ))}

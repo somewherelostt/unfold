@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconSettings } from "@/components/ui/icons";
@@ -7,12 +8,17 @@ import { BrandLogo, BrandMark } from "@/components/ui/BrandLogo";
 
 /** 56px frosted app header: wordmark left, optional centre, settings right. */
 export function AppHeader({ children }: { children?: ReactNode }) {
+  const path = usePathname();
   return (
-    <header className="frosted chrome sticky top-0 z-30 shadow-[inset_0_-1px_0_var(--hairline)]">
-      <div className="mx-auto flex h-14 w-full max-w-[1120px] items-center gap-3 px-4 sm:px-8">
+    <header className="uf-app-header chrome">
+      <div className="uf-app-header-inner">
         <Wordmark />
-        <div className="flex min-w-0 flex-1 items-center justify-center">{children}</div>
-        <Link href="/settings" className={buttonClasses("ghost", "sm")}>
+        <nav aria-label="Workspace" className="uf-workspace-nav">
+          <Link href="/app" aria-current={path === "/app" ? "page" : undefined}>Edits</Link>
+          <Link href="/app/publishing" aria-current={path.startsWith("/app/publishing") ? "page" : undefined}>Publishing</Link>
+        </nav>
+        {children && <div className="hidden min-w-0 flex-1 items-center justify-center sm:flex">{children}</div>}
+        <Link href="/settings" aria-label="Settings" className={buttonClasses("ghost", "sm", "ml-auto")}>
           <IconSettings />
           <span className="hidden sm:inline">Settings</span>
         </Link>

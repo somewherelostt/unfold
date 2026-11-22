@@ -142,7 +142,7 @@ export function ExportButton({ id, serverId, plan, disabled }: { id?: string; se
           <div className="space-y-3">
             <div className="text-[13px] font-medium">Export video</div>
             <Row label="Resolution">
-              <Segmented mono className="w-[132px]" options={[{ value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }]} value={res} onChange={(v) => setRes(v as "720p" | "1080p")} />
+              <Segmented label="Export resolution" mono className="w-[132px]" options={[{ value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }]} value={res} onChange={(v) => setRes(v as "720p" | "1080p")} />
             </Row>
             <Row label="Burn in captions">
               <Toggle label="Burn in captions" checked={burn} onChange={setBurn} />
@@ -183,6 +183,7 @@ export function ExportButton({ id, serverId, plan, disabled }: { id?: string; se
       )}
       {state && "error" in state && (
         <Toast
+          role="alert"
           icon={<span className="size-2 rounded-full bg-danger" />}
           onClose={() => setState(null)}
           actions={

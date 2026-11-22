@@ -1,0 +1,22 @@
+{
+  "source_url": "https://www.pexels.com/video/dynamic-ocean-waves-captured-from-above-29285421/",
+  "license_url": "https://www.pexels.com/license/",
+  "license_checked": "2026-11-22",
+  "attribution_required": false,
+  "source_resolution": [
+    2160,
+    3840
+  ],
+  "download_resolution": [
+    1080,
+    1920
+  ],
+  "source_start_seconds": 1,
+  "loop_seconds": 6.1,
+  "modifications": [
+    "trim",
+    "30fps muted web loop"
+  ],
+  "presentation": "Illustrative style preview.",
+  "web_bytes": 3871730
+}

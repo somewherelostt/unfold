@@ -37,28 +37,28 @@ export function AlternatesDrawer({ id, frames, onClose, className = "", style }:
             <Shimmer>
               {run.status === "queued" ? (
                 <>
-                  Queued at Cerebras · <span className="tabular font-mono">{String(Math.floor(waited / 60)).padStart(2, "0")}:{String(waited % 60).padStart(2, "0")}</span>
+                  Waiting for alternate edits · <span className="tabular font-mono">{String(Math.floor(waited / 60)).padStart(2, "0")}:{String(waited % 60).padStart(2, "0")}</span> elapsed
                 </>
               ) : (
-                "Planning three takes…"
+                "Receiving alternate edits…"
               )}
             </Shimmer>
           </span>
         ) : run?.status === "error" ? (
           <span className="text-[12px] text-danger">{run.error}</span>
         ) : (
-          <span className="hidden truncate text-[12px] text-text-3 sm:inline">{run?.warning ?? run?.error ?? "Different hook, pacing, track and captions"}</span>
+          <span className="hidden truncate text-[12px] text-text-3 sm:inline">{run?.warning ?? run?.error ?? "Optional versions based on your footage"}</span>
         )}
         <div className="ml-auto flex items-center gap-1">
           {active ? (
             <Button size="sm" variant="ghost" className="h-7" onClick={() => actions.cancel({ alternatesOf: root })}>
               Cancel
             </Button>
-          ) : (
+          ) : !run?.interrupted && run?.retryable !== false && run?.errorCode !== "AUTH_REJECTED" ? (
             <Button size="sm" variant="ghost" className="h-7" onClick={() => void actions.generateAlternates(root)}>
-              <IconSparkle size={14} /> {run ? (run.status === "error" ? "Retry" : "Three more") : "Make three"}
+              <IconSparkle size={14} /> {run ? (run.status === "error" ? (run.errorCode === "RATE_LIMITED" || run.errorCode === "UNAVAILABLE" ? "Try again later" : "Retry") : "Three more") : "Make three"}
             </Button>
-          )}
+          ) : null}
           <Button size="icon-sm" variant="ghost" aria-label="Close" onClick={onClose}>
             <IconX size={14} />
           </Button>

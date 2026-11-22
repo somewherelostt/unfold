@@ -1,21 +1,18 @@
 "use client";
-/** /app: centred prompt shell + chips, clip status, recent edits. */
+/** Source-first workspace. Existing upload, draft recovery and generation contracts stay in the store. */
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type DragEvent } from "react";
-import { sampleAnalysis } from "@unfold/core";
+import { useEffect, useRef, useState } from "react";
 import { actions, isActive, useStore, type PlanEntry } from "@/lib/client/store";
-import { PromptShell, type PromptSubmit } from "@/components/ui/PromptShell";
+import type { PromptSubmit } from "@/components/ui/PromptShell";
 import { abandonPromptDraft, adoptPromptSearch, recoverPromptDraft } from "@/lib/client/draft";
 import { Button } from "@/components/ui/Button";
-import { SectionLabel } from "@/components/ui/Panel";
-import { Shimmer } from "@/components/ui/Shimmer";
-import { VideoCard } from "@/components/ui/VideoCard";
-import { IconArrowRight, IconUpload, IconX } from "@/components/ui/icons";
+import { IconArrowRight, IconMedia, IconUpload, IconX } from "@/components/ui/icons";
 import { AppHeader } from "../AppHeader";
 import { SupportingAssets } from "../SupportingAssets";
 
-const BRIEFS = ["Make my gameplay go viral", "Add captions that pop, word by word", "Cut this into a 15s hook-first clip", "Hype reel with whip pans and a big drop"];
+import { SourceUpload } from "./SourceUpload";
+import { EditBrief } from "./EditBrief";
 
 export function HomeScreen() {
   const router = useRouter();
@@ -81,88 +78,32 @@ export function HomeScreen() {
   return (
     <div className="flex min-h-dvh flex-col">
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col px-4 pb-24 pt-14 sm:px-8 sm:pt-24">
-        <div className="mx-auto w-full max-w-[640px] text-center">
-          <h1 className="uf-rise font-display text-[38px] leading-[42px] tracking-[-0.02em] text-text-1 sm:text-[52px] sm:leading-[56px]">
-            What should this clip <em className="italic">become</em>?
-          </h1>
-          <p className="uf-rise mx-auto mt-3 max-w-[480px] text-[15px] leading-6 text-text-2 [--i:1]">
-            Drop in raw footage. Unfold edits it with captions, beat-synced music, transitions and sound effects.
-          </p>
+      <main className="uf-page">
+        <header className="uf-page-heading">
+          <div><p className="uf-kicker">Your workspace</p><h1>Your next edit starts <em>here.</em></h1>
+          <p className="uf-page-description">Upload your footage. Unfold shapes the pacing and captions around your story.</p></div>
+          {running && <Link href="/app/new" className="uf-text-link">View edit in progress <IconArrowRight /></Link>}
+        </header>
+        <div className="uf-create-grid">
+          <section className="uf-card" aria-labelledby="source-heading">
+            <div className="uf-card-heading"><span className="uf-step">01</span><h2 id="source-heading">Your footage</h2><span className="uf-meta">Start here</span></div>
+            <SourceUpload onAttach={attach} disabled={running || recovering} />
+            {project.videoId && <div className="mt-5 border-t border-hairline pt-5"><SupportingAssets primaryVideoId={project.videoId} /></div>}
+          </section>
+          <section className="uf-card" aria-labelledby="brief-heading">
+            <div className="uf-card-heading"><span className="uf-step">02</span><h2 id="brief-heading">Give it a direction</h2><span className="uf-meta">Optional</span></div>
+            <EditBrief defaultText={params.get("prompt") ?? project.prompt} defaultStyle={params.get("style") ?? project.promptStyle ?? "Auto"} defaultAspect={params.get("aspect") ?? project.aspect}
+              busy={project.analyzing || recovering} hasClip={!!project.videoId} disabled={running || recovering || project.analyzing || !project.videoId || !!draftError} onSubmit={start} />
+            {recovering && <p role="status" className="uf-status-card mt-3">Recovering your attached clip…</p>}
+            {draftError && <div role="alert" className="uf-status-card mt-3" data-tone="error"><p>{draftError}</p><Button size="sm" variant="secondary" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
+            <Inspiration />
+          </section>
         </div>
-
-        <div className="uf-rise mx-auto mt-9 w-full max-w-[640px] [--i:2]">
-          <PromptShell
-            briefs={params.get("prompt") || project.prompt ? undefined : BRIEFS}
-            defaultText={params.get("prompt") ?? project.prompt}
-            defaultStyle={params.get("style") ?? project.promptStyle ?? "Auto"}
-            defaultAspect={params.get("aspect") ?? project.aspect}
-            working={running || recovering || project.analyzing}
-            onAttach={attach}
-            onTextChange={(t) => actions.setPrompt(t)}
-            onSubmit={start}
-          />
-          <ClipStatus />
-          {recovering && <p role="status" className="mt-3 text-center text-[12px] text-text-3">Recovering your attached clip…</p>}
-          {draftError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[12px] text-danger"><span>{draftError}</span><Button size="sm" variant="ghost" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
-          <Inspiration />
-          {project.videoId && <div className="mt-4 rounded-[14px] bg-surface-1 p-3 shadow-[inset_0_0_0_1px_var(--hairline)]"><SupportingAssets primaryVideoId={project.videoId} /></div>}
-        </div>
-
-        <section className="mt-20">
-          <div className="mb-4 flex items-baseline justify-between">
-            <SectionLabel>Recent edits</SectionLabel>
-            {recent.length > 0 && <span className="tabular font-mono text-[11px] text-text-3">{recent.length}</span>}
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-            <DropTile onAttach={attach} />
-            {recent.map(([id, e], i) => (
-              <RecentCard key={id} id={id} entry={e} i={i} />
-            ))}
-            {recent.length === 0 && <SampleTile disabled={running || recovering || !!draftError} onStart={async () => {
-              actions.clearUpload();
-              const response = await fetch("/demo/sample.mp4");
-              if (!response.ok) throw new Error("The sample video is unavailable. Attach your own clip to continue.");
-              const uploaded = await actions.upload(new File([await response.blob()], "sample.mp4", { type: "video/mp4" }));
-              if (!uploaded) throw new Error("Couldn't prepare the sample. Attach your own clip or retry.");
-              start({ prompt: "", file: null, style: "Auto", aspect: "9:16" });
-            }} />}
-          </div>
+        <section className="uf-library" aria-labelledby="recent-heading">
+          <div className="uf-section-heading"><div><h2 id="recent-heading">Your edits</h2><p>Pick up where you left off.</p></div>{recent.length > 0 && <span className="uf-meta">{recent.length} {recent.length === 1 ? "edit" : "edits"}</span>}</div>
+          {recent.length > 0 ? <div className="uf-edit-grid">{recent.map(([id, entry]) => <RecentCard key={id} id={id} entry={entry} />)}</div> : <div className="uf-library-empty"><div><IconMedia size={24} /><h3>Your first edit belongs here.</h3><p>Upload your footage above. Your saved edits will appear here.</p></div></div>}
         </section>
       </main>
-    </div>
-  );
-}
-
-/** Upload / analysis status under the shell. */
-function ClipStatus() {
-  const p = useStore((s) => s.project);
-  if (!p.fileName) return p.analyzeError ? <p role="alert" className="mt-3 text-center text-[12px] text-danger">{p.analyzeError}</p> : null;
-  return (
-    <div role="status" className="mt-3 flex items-center gap-3 rounded-[14px] bg-surface-1 p-2.5 text-left text-[12px] text-text-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
-      <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-surface-2">
-        {p.analysis ? <video src={p.analysis.src} poster={p.analysis.frames[0]?.url} muted playsInline preload="metadata" className="h-full w-full object-cover" aria-label="Your attached clip" /> : <IconUpload size={18} />}
-      </div>
-      <div className="min-w-0 flex-1">
-      <p className="truncate font-medium text-text-1" title={p.fileName}>{p.fileName}</p>
-      {p.analyzeError ? (
-        <span className="flex items-center gap-2 text-danger">
-          {p.analyzeError}
-          {p.videoId && <button className="text-text-1 underline-offset-2 hover:underline" onClick={() => void actions.retryAnalyze()}>
-            Retry
-          </button>}
-        </span>
-      ) : p.analyzing || !p.analysis ? (
-        <Shimmer>Transcribing, finding scenes and beats…</Shimmer>
-      ) : (
-        <span className="tabular font-mono">
-          {p.analysis.durationSec.toFixed(1)}s · {p.analysis.words.length} words · {p.analysis.scenes.length} scenes
-        </span>
-      )}
-      </div>
-      <button aria-label="Remove clip" onClick={() => actions.clearUpload()} className="grid size-7 shrink-0 place-items-center rounded-full text-text-3 hover:text-text-1">
-        <IconX size={12} />
-      </button>
     </div>
   );
 }
@@ -173,7 +114,7 @@ function Inspiration() {
   const file = p.referenceUrl.startsWith("upload:");
   return (
     <details className="mt-4 rounded-[14px] bg-surface-1 px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--hairline)]" open={p.referenceUrl || p.referenceNotice ? true : undefined}>
-      <summary className="cursor-pointer text-[12px] text-text-2">Copy an inspiration video <span className="text-text-4">· optional</span></summary>
+      <summary className="cursor-pointer text-[12px] text-text-2">Add an inspiration video <span className="text-text-4">· optional</span></summary>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {file ? <span className="min-w-0 flex-1 truncate text-[12px] text-text-1">{p.referenceUrl.slice(7)}</span> : <input type="url" aria-label="Inspiration video link" placeholder="Paste a video link…" value={p.referenceUrl} onChange={(e) => actions.setReferenceUrl(e.target.value)} className="h-9 min-w-[160px] flex-1 rounded-[10px] bg-surface-2 px-3 text-[13px] outline-none placeholder:text-text-4" />}
         <Button size="sm" variant="secondary" onClick={() => input.current?.click()}><IconUpload size={13} /> Attach video</Button>
@@ -186,78 +127,21 @@ function Inspiration() {
   );
 }
 
-/** 9:16 drop zone tile (also a file picker). */
-function DropTile({ onAttach }: { onAttach: (file: File) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [drag, setDrag] = useState(false);
-  const fileName = useStore((s) => s.project.fileName);
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDrag(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f?.type.startsWith("video/")) onAttach(f);
-  };
-  return (
-    <button
-      type="button"
-      onClick={() => input.current?.click()}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDrag(true);
-      }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={onDrop}
-      className={`group flex aspect-[9/16] flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed text-center transition-colors ${
-        drag ? "border-text-2 bg-surface-2" : "border-[var(--hairline-strong)] bg-surface-1/40 hover:bg-surface-1"
-      }`}
-    >
-      <span className="grid size-9 place-items-center rounded-full bg-surface-2 text-text-2 shadow-[inset_0_0_0_1px_var(--hairline)] group-hover:text-text-1">
-        <IconUpload />
-      </span>
-      <span className="text-[13px] font-medium text-text-1">{fileName ? "Replace clip" : "Drop a clip"}</span>
-      <span className="px-4 text-[11px] leading-[14px] text-text-3">Vertical or wide, up to 3 min</span>
-      <input
-        ref={input}
-        type="file"
-        accept="video/*"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onAttach(f);
-          e.target.value = "";
-        }}
-      />
-    </button>
-  );
-}
-
-function RecentCard({ id, entry, i }: { id: string; entry: PlanEntry; i: number }) {
-  const p = entry.base;
-  const frames = useStore((s) => s.analyses[p.source.videoId]?.frames ?? (s.project.analysis?.videoId === p.source.videoId ? s.project.analysis.frames : undefined));
-  const poster = posterFor(p.clips[0]?.srcStart ?? 0, frames ?? sampleAnalysis.frames);
-  return (
-    <Link href={`/app/edit/${id}`} className="uf-rise block rounded-[14px]" style={{ ["--i" as string]: i + 1 }}>
-      <VideoCard src={p.source.src} poster={poster} title={entry.name} meta={`${p.durationSec.toFixed(1)}s`} play="hover" />
-    </Link>
-  );
-}
-
-function SampleTile({ onStart, disabled }: { onStart: () => Promise<void>; disabled?: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function run() {
-    setBusy(true); setError("");
-    try { await onStart(); } catch (e) { setError(e instanceof Error ? e.message : "Couldn't prepare the sample."); }
-    finally { setBusy(false); }
-  }
-  return (
-    <div><button type="button" disabled={disabled || busy} onClick={() => void run()} className="group relative block text-left disabled:opacity-40">
-      <VideoCard src="/demo/sample.mp4" poster="/demo/frame-12.jpg" title={busy ? "Preparing sample…" : "Try the sample clip"} meta="20s" play="hover" />
-      <span className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
-        <IconArrowRight size={14} />
-      </span>
-    </button>{error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}</div>
-  );
+/** Verify ownership before loading any thumbnail. Unavailable local drafts remain discoverable. */
+function RecentCard({ id, entry }: { id: string; entry: PlanEntry }) {
+  const access = useStore((s) => s.planAccess[id]);
+  const frames = useStore((s) => s.analyses[entry.base.source.videoId]?.frames);
+  const [failedPoster, setFailedPoster] = useState("");
+  useEffect(() => { if (!access) void actions.ensurePlan(id); }, [access, id]);
+  const poster = access === "ready" ? posterFor(entry.base.clips[0]?.srcStart ?? 0, frames ?? []) : undefined;
+  return <Link href={`/app/edit/${id}`} aria-label={`Open ${entry.name}`} className="uf-edit-card">
+    <div className="uf-edit-thumbnail">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {poster && failedPoster !== poster ? <img src={poster} alt="" onError={() => setFailedPoster(poster)} /> : <IconMedia size={28} />}
+      <span>{entry.base.aspect} · {entry.base.durationSec.toFixed(1)}s</span>
+    </div>
+    <div className="p-3.5"><h3>{entry.name}</h3><p>{access === "error" ? "Unavailable · local draft preserved" : access === "ready" ? "Open in studio" : "Checking access…"}</p></div>
+  </Link>;
 }
 
 export function posterFor(t: number, frames: { t: number; url: string }[]) {

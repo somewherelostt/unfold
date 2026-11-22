@@ -22,7 +22,7 @@ export function StylePanel({ plan, base, overrides, set, onAlternates }: PanelPr
         <p className="mt-1 text-[12px] leading-[18px] text-text-2">{plan.rationale}</p>
       </div>
       <Row label="Format">
-        <Segmented
+        <Segmented label="Output format"
           mono
           className="w-[168px]"
           options={(["9:16", "1:1", "16:9"] as const).map((v) => ({ value: v, label: v }))}

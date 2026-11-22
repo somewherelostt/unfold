@@ -1,0 +1,44 @@
+{
+  "usage": "User-requested local hero previews",
+  "clips": [
+    {
+      "asset": "hero-game.mp4",
+      "source_url": "https://www.youtube.com/watch?v=VQRLujxTm3c",
+      "official_source_checked": "2026-11-22",
+      "source_start_seconds": 35,
+      "duration_seconds": 3.0,
+      "dimensions": [
+        320,
+        320
+      ],
+      "bytes": 302225,
+      "modifications": [
+        "short excerpt",
+        "square reframing",
+        "muted loop"
+      ],
+      "rights": "Publicly viewable official upload; no redistribution or advertising license grant verified.",
+      "endorsement_claim": false
+    },
+    {
+      "asset": "hero-caption.mp4",
+      "source_url": "https://www.youtube.com/watch?v=0e3GPea1Tyg",
+      "official_source_checked": "2026-11-22",
+      "source_start_seconds": 6.7,
+      "duration_seconds": 2.0,
+      "dimensions": [
+        320,
+        320
+      ],
+      "bytes": 183008,
+      "modifications": [
+        "short excerpt",
+        "square reframing",
+        "muted loop",
+        "caption overlay in the page"
+      ],
+      "rights": "Publicly viewable official upload; no redistribution or advertising license grant verified.",
+      "endorsement_claim": false
+    }
+  ]
+}

@@ -1,80 +1,133 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Caption } from "./Caption";
-import { useInView, useMotionScope, useParallax, useTicker } from "./hooks";
+import { useInView, useMotionScope, useReducedMotion, useTicker } from "./hooks";
 import { PreviewVideo } from "./Preview";
 import { CLIPS, type Clip } from "./showcase-clips";
 
-const TABS: Clip[] = [CLIPS.gaming, CLIPS.creator, CLIPS.podcast, CLIPS.food];
+const TABS: Clip[] = [CLIPS.gaming, CLIPS.creator, CLIPS.podcast, CLIPS.coast];
 
-/**
- * Raw → edit showcase: a dark app frame inside a light grey card. Tabs switch the example; while the
- * section is on screen they also advance on their own every few seconds (pausing once you click one).
- */
-export function RawToEdit() {
-  const { ref: sec, live } = useMotionScope<HTMLElement>();
-  const frame = useParallax<HTMLDivElement>();
+/** Native scrolling selects the same example at the same position in either direction. */
+function useShowcaseSequence() {
+  const track = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const geometry = useRef({ pinned: false, travel: 0, top: 76 });
   const [active, setActive] = useState(0);
-  const [held, setHeld] = useState(false);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
-    if (!live || held) return;
-    const id = setInterval(() => setActive((i) => (i + 1) % TABS.length), 6500);
-    return () => clearInterval(id);
-  }, [live, held]);
+    const rail = track.current;
+    const scene = stage.current;
+    if (!rail || !scene) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      if (reduce) return;
+      const r = rail.getBoundingClientRect();
+      const { pinned, travel, top } = geometry.current;
+      const progress = pinned
+        ? (top - r.top) / travel
+        : (window.innerHeight * 0.6 - r.top) / (r.height + window.innerHeight * 0.2);
+      setActive(Math.min(TABS.length - 1, Math.max(0, Math.floor(progress * TABS.length))));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    const measure = () => {
+      const top = window.innerWidth >= 640 ? 88 : 76;
+      const pinned = !reduce && scene.offsetHeight <= window.innerHeight - top - 24;
+      const travel = pinned
+        ? Math.round(Math.min(400, Math.max(240, window.innerHeight * 0.42))) * (TABS.length - 1)
+        : 0;
+      geometry.current = { pinned, travel, top };
+      rail.dataset.pinned = String(pinned);
+      rail.style.setProperty("--showcase-height", pinned ? `${scene.offsetHeight + travel}px` : "auto");
+      onScroll();
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(scene);
+    measure();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", measure);
+    };
+  }, [reduce]);
 
   const select = (i: number) => {
-    setActive(i);
-    setHeld(true);
+    const { pinned, travel, top } = geometry.current;
+    if (reduce || !pinned || !track.current) {
+      setActive(i);
+      return;
+    }
+    const start = window.scrollY + track.current.getBoundingClientRect().top - top;
+    window.scrollTo({ top: start + ((i + 0.5) / TABS.length) * travel, behavior: "smooth" });
   };
 
+  return { track, stage, active, select };
+}
+
+export function RawToEdit() {
+  const { track, stage, active, select } = useShowcaseSequence();
   return (
-    <section ref={sec} id="showcase" aria-label="Raw clip to finished edit" className="mk-section !pt-8">
+    <section id="showcase" aria-label="Raw clip to finished edit" className="mk-section !pt-8">
       <div className="mk-container">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="mk-label">From raw to ready</p>
-            <h2 className="mk-title mt-3 max-w-[620px]">
-              Watch a raw clip become an <em>edit.</em>
-            </h2>
-            <p className="mt-4 max-w-[520px] text-[15px] leading-6 text-text-2">Explore the look of an edit. These previews illustrate captions and effects on example footage.</p>
-          </div>
-          <div role="tablist" aria-label="Example clips" className="flex w-max max-w-full gap-0.5 overflow-x-auto rounded-[12px] bg-surface-2 p-1 mk-hair">
-            {TABS.map((t, i) => (
-              <button
-                key={t.slug}
-                role="tab"
-                id={`showcase-tab-${i}`}
-                aria-controls="showcase-panel"
-                aria-selected={active === i}
-                tabIndex={active === i ? 0 : -1}
-                onFocus={() => setHeld(true)}
-                onClick={() => select(i)}
-                onKeyDown={(e) => {
-                  let next = i;
-                  if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
-                  else if (e.key === "ArrowLeft") next = (i + TABS.length - 1) % TABS.length;
-                  else if (e.key === "Home") next = 0;
-                  else if (e.key === "End") next = TABS.length - 1;
-                  else return;
-                  e.preventDefault();
-                  select(next);
-                  document.getElementById(`showcase-tab-${next}`)?.focus();
-                }}
-                className={`h-8 shrink-0 cursor-pointer rounded-[9px] px-3 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-300 ease-[var(--ease)] ${
-                  active === i ? "bg-surface-1 text-text-1 shadow-[var(--shadow-raised)]" : "text-text-3 hover:text-text-1"
-                }`}
-              >
-                {t.tag}
-              </button>
-            ))}
-          </div>
+        <div>
+          <p className="mk-label">From raw to ready</p>
+          <h2 className="mk-title mt-3 max-w-[620px]">
+            Watch a raw clip become an <em>edit.</em>
+          </h2>
+          <p className="mt-4 max-w-[520px] text-[15px] leading-6 text-text-2">Explore the look of an edit. These previews illustrate captions and effects on example footage.</p>
         </div>
-        <div ref={frame} className="mk-card mt-8 p-3 sm:p-6 lg:mt-10 lg:p-10">
-          <div className="mk-dark" id="showcase-panel" role="tabpanel" aria-labelledby={`showcase-tab-${active}`}>
-            <Frame clip={TABS[active]} key={TABS[active].slug} />
+        <div ref={track} className="mk-showcase-scroll mt-8 lg:mt-10">
+          <div ref={stage} className="mk-showcase-sticky">
+            <div className="mb-4 flex items-center justify-between gap-4 sm:mb-6">
+              <div role="tablist" aria-label="Example clips" className="flex w-max max-w-full gap-px overflow-x-auto rounded-[12px] bg-surface-2 p-1 mk-hair sm:gap-0.5">
+                {TABS.map((t, i) => (
+                  <button
+                    key={t.slug}
+                    role="tab"
+                    id={`showcase-tab-${i}`}
+                    aria-controls={`showcase-panel-${i}`}
+                    aria-selected={active === i}
+                    tabIndex={active === i ? 0 : -1}
+                    onClick={() => select(i)}
+                    onKeyDown={(e) => {
+                      let next = i;
+                      if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
+                      else if (e.key === "ArrowLeft") next = (i + TABS.length - 1) % TABS.length;
+                      else if (e.key === "Home") next = 0;
+                      else if (e.key === "End") next = TABS.length - 1;
+                      else return;
+                      e.preventDefault();
+                      select(next);
+                      document.getElementById(`showcase-tab-${next}`)?.focus({ preventScroll: true });
+                    }}
+                    className={`h-8 shrink-0 cursor-pointer rounded-[9px] px-2 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-300 ease-[var(--ease)] sm:px-3 ${
+                      active === i ? "bg-surface-1 text-text-1 shadow-[var(--shadow-raised)]" : "text-text-3 hover:text-text-1"
+                    }`}
+                  >
+                    {t.tag}
+                  </button>
+                ))}
+              </div>
+              <span aria-hidden className="hidden font-mono text-[11px] tabular-nums text-text-3 sm:block">0{active + 1} / 04</span>
+            </div>
+            <div className="mk-showcase-card mk-card p-3 sm:p-6 lg:p-10">
+              <div className="grid">
+                {TABS.map((clip, i) => (
+                  <div key={clip.slug} className="mk-showcase-panel mk-dark" data-phase={active === i ? "active" : i < active ? "before" : "after"}
+                    id={`showcase-panel-${i}`} role="tabpanel" tabIndex={active === i ? 0 : -1} aria-labelledby={`showcase-tab-${i}`} aria-hidden={active !== i} inert={active !== i}>
+                    <Frame clip={clip} active={active === i} />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -82,8 +135,8 @@ export function RawToEdit() {
   );
 }
 
-function Frame({ clip }: { clip: Clip }) {
-  const { ref: box, live: visible } = useMotionScope<HTMLDivElement>();
+function Frame({ clip, active }: { clip: Clip; active: boolean }) {
+  const { ref: box, live: visible } = useMotionScope<HTMLDivElement>(active);
   const seen = useInView(box, { amount: 0.3 });
   const beat = clip.bpm ? Math.round(60000 / clip.bpm) : 520;
   const word = useTicker(clip.words.length, beat, seen && visible);
@@ -92,7 +145,7 @@ function Frame({ clip }: { clip: Clip }) {
     <div
       ref={box}
       data-live={seen && visible}
-      className="mk-motion mk-swap overflow-hidden rounded-[18px] bg-surface-1 shadow-[0_24px_60px_-20px_rgb(0_0_0/.45)] lg:aspect-[16/9] lg:w-full"
+      className="mk-motion overflow-hidden rounded-[18px] bg-surface-1 shadow-[0_24px_60px_-20px_rgb(0_0_0/.45)] lg:aspect-[16/9] lg:w-full"
     >
       <div className="flex h-full flex-col">
         {/* Top bar */}
@@ -111,7 +164,7 @@ function Frame({ clip }: { clip: Clip }) {
         {/* Raw | Edit */}
         <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 bg-bg p-3 sm:gap-6 sm:p-6 lg:grid-cols-[1fr_auto_1.2fr] lg:items-center lg:gap-10 lg:px-16">
           <Panel label="Raw" muted>
-            <PreviewVideo src={clip.src} poster={clip.poster} className="h-full w-full object-cover saturate-[.35] brightness-90" />
+            <PreviewVideo active={active} src={clip.src} poster={clip.poster} className="h-full w-full object-cover saturate-[.35] brightness-90" />
           </Panel>
           <div className="hidden flex-col items-center gap-2 lg:flex" aria-hidden>
             <span className="h-px w-16 bg-gradient-to-r from-transparent via-[var(--hairline-strong)] to-transparent" />
@@ -122,11 +175,11 @@ function Frame({ clip }: { clip: Clip }) {
           </div>
           <Panel label="Edit">
             <div className={`absolute inset-0 ${clip.bpm ? "mk-thump" : ""}`} style={{ animationDuration: `${beat}ms` }}>
-              <div className="mk-punch absolute inset-0" style={{ animationDuration: `${beat * 4}ms` }}>
-                <PreviewVideo src={clip.src} poster={clip.poster} className="h-full w-full object-cover saturate-[1.2] contrast-[1.06]" />
+              <div className={`absolute inset-0 ${clip.bpm > 0 ? "mk-punch" : ""}`} style={{ animationDuration: `${beat * 4}ms` }}>
+                <PreviewVideo active={active} src={clip.src} poster={clip.poster} className="h-full w-full object-cover saturate-[1.2] contrast-[1.06]" />
               </div>
             </div>
-            <div className="mk-flash pointer-events-none absolute inset-0 bg-white" style={{ animationDuration: `${beat * 4}ms` }} />
+            {clip.bpm > 0 && <div className="mk-flash pointer-events-none absolute inset-0 bg-white" style={{ animationDuration: `${beat * 4}ms` }} />}
             <div className="pointer-events-none absolute inset-x-2 top-[58%]">
               <div key={word} className="mk-pop">
                 <Caption words={[clip.words[word]]} hot={clip.hot.includes(word) ? [0] : []} style={clip.style} size={30} />

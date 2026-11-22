@@ -1,0 +1,10 @@
+{
+  "derived_from": "podcast.mp4",
+  "source_url": "https://www.youtube.com/watch?v=cxyowd71_Qw",
+  "source_start_seconds": 0,
+  "loop_seconds": 3.2,
+  "modifications": [
+    "Retain the centered speaker shot; omit later off-frame camera angles."
+  ],
+  "rights": "Existing project footage; original provenance retained."
+}

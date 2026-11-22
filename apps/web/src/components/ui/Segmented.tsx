@@ -7,16 +7,18 @@ export function Segmented<T extends string>({
   onChange,
   className = "",
   mono = false,
+  label,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   className?: string;
   mono?: boolean;
+  label?: string;
 }) {
   const i = Math.max(0, options.findIndex((o) => o.value === value));
   return (
-    <div role="radiogroup" className={`relative grid h-7 rounded-[8px] bg-surface-2 p-0.5 ${className}`} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div role="radiogroup" aria-label={label} className={`ui-segmented relative grid h-7 rounded-[8px] bg-surface-2 p-0.5 ${className}`} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       <span
         aria-hidden
         className="absolute inset-y-0.5 left-0.5 rounded-[6px] bg-surface-3 shadow-[inset_0_0_0_1px_var(--hairline-strong)] transition-transform duration-[var(--dur-pop)] ease-[var(--ease)]"

@@ -32,7 +32,7 @@ export function Nav() {
             <Wordmark />
           </Link>
           <span className="hidden items-center gap-5 text-[13px] text-text-2 lg:flex">
-            <a href="#styles" className="hover:text-text-1">Features</a>
+            <a href="#styles" className="hover:text-text-1">Styles</a>
             <a href="#ways" className="hover:text-text-1">How it works</a>
             <a href="#speed" className="hover:text-text-1">Workflow</a>
             <a href="#faq" className="hover:text-text-1">FAQ</a>
@@ -59,8 +59,8 @@ type Float = { clip: Clip; className: string; r: number; w: number; d: number; d
 const FLOATS: Float[] = [
   { clip: CLIPS.gaming, className: "left-[3%] top-[30%]", r: -9, w: 132, d: 500, drift: 7 },
   { clip: CLIPS.creator, className: "left-[10%] top-[62%]", r: 6, w: 116, d: 580, drift: 9 },
-  { clip: CLIPS.podcast, className: "right-[3%] top-[28%]", r: 8, w: 128, d: 540, drift: 8.5 },
-  { clip: CLIPS.food, className: "right-[10%] top-[60%]", r: -7, w: 112, d: 620, drift: 7.5 },
+  { clip: CLIPS.podcast, className: "right-[3%] top-[28%]", r: 6, w: 142, d: 540, drift: 8.5 },
+  { clip: CLIPS.coast, className: "right-[10%] top-[60%]", r: -7, w: 112, d: 620, drift: 7.5 },
 ];
 
 function FloatingClip({ f }: { f: Float }) {
@@ -84,7 +84,13 @@ function FloatingClip({ f }: { f: Float }) {
 
 /* ---------- inline media chips (each ~1em, looping) ---------- */
 
-function ClipChip({ clip }: { clip: Clip }) {
+type HeroMedia = Pick<Clip, "src" | "poster">;
+const HERO_MEDIA = {
+  game: { src: "/landing/hero-game.mp4", poster: "/landing/hero-game.jpg" },
+  creator: { src: "/landing/hero-caption.mp4", poster: "/landing/hero-caption.jpg" },
+} satisfies Record<string, HeroMedia>;
+
+function ClipChip({ clip }: { clip: HeroMedia }) {
   return (
     <span className="mk-chip-media" aria-hidden>
       <PreviewVideo src={clip.src} poster={clip.poster} className="absolute inset-0 h-full w-full object-cover" />
@@ -94,13 +100,12 @@ function ClipChip({ clip }: { clip: Clip }) {
 
 function CaptionChip() {
   const { ref, live } = useMotionScope<HTMLSpanElement>();
-  const w = useTicker(3, 520, live);
+  const w = useTicker(2, 900, live);
   return (
     <span ref={ref} data-live={live} className="mk-chip-media mk-motion" aria-hidden>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/landing/hero-3.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
-      <span key={w} className="mk-pop mk-cap absolute inset-0 grid place-items-center text-[.3em]" style={{ WebkitTextStroke: "0.06em #000", color: w === 2 ? "#FFE14D" : "#fff" }}>
-        {["wait", "for", "it"][w]}
+      <PreviewVideo src={HERO_MEDIA.creator.src} poster={HERO_MEDIA.creator.poster} className="absolute inset-0 h-full w-full object-cover" />
+      <span key={w} className="mk-pop mk-cap absolute inset-x-[3%] bottom-[8%] text-center text-[.23em]" style={{ WebkitTextStroke: "0.055em #000", color: w === 1 ? "#FFE14D" : "#fff" }}>
+        {["REAL", "LIFE"][w]}
       </span>
     </span>
   );
@@ -129,13 +134,13 @@ export function Hero() {
       <div className="mk-container relative flex flex-col items-center text-center">
         <p className="mk-label">Your new editing agent</p>
         <h1 className="mk-hero-title mk-hero-title-short mt-6 max-w-[900px]" aria-label="You shoot it. Unfold edits it.">
-          <W d={0}><ClipChip clip={CLIPS.gaming} /> You shoot it.</W>
+          <W d={0}><ClipChip clip={HERO_MEDIA.game} /> You shoot it.</W>
           <W d={90}>Unfold edits it. <CaptionChip /></W>
         </h1>
         <p className="mx-auto mt-6 max-w-[540px] text-[17px] leading-7 text-text-2">
           Turn your raw clip into a finished edit with captions, beat-synced music, transitions and sound effects.
         </p>
-        <PromptShell className="mt-10 max-w-[640px]" briefs={BRIEFS} />
+        <PromptShell className="mk-prompt-shell mt-10 max-w-[640px]" briefs={BRIEFS} />
       </div>
       <div className="mk-ruler pointer-events-none absolute inset-x-0 bottom-0" aria-hidden />
     </section>
