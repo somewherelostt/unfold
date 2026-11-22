@@ -7,6 +7,7 @@ import { apiError } from "@/server/api-errors";
 import { StorageError } from "@/server/private-storage";
 import { sse } from "@/server/sse";
 import { validateSavedEdit } from "@/server/plan-access";
+import { agentErrorPayload } from "@/server/agent-errors";
 
 export const maxDuration = 120;
 export async function POST(req: Request) {
@@ -33,6 +34,12 @@ export async function POST(req: Request) {
         const stored = await store.putPlan(user, saved.projectId, { editPlan: result.editPlan, agentPlan: result.agentPlan, videoId: saved.videoId, createdAt: Date.now() });
         send("plan", { editPlan: stored.editPlan, agentPlan: stored.agentPlan, stats: result.stats, revision: stored.revision, updatedAt: stored.updatedAt, projectId: stored.projectId });
       } finally { try { await execution.dispose(); } finally { await release(); } }
-    }, req.signal);
-  } catch (error) { return apiError(error); }
+    }, req.signal, (error) => agentErrorPayload(error, req.signal));
+  } catch (error) {
+    if (req.signal.aborted) {
+      const failure = agentErrorPayload(error, req.signal);
+      return Response.json({ error: failure.message, ...failure }, { status: 499 });
+    }
+    return apiError(error);
+  }
 }

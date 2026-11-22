@@ -16,6 +16,7 @@ import { fakeStats, mockAgentPlans, mockAnalysis, mockCompile, mockPlanById, moc
 import type { ExportEvent, GenerateRequest, ReferenceResult, RemixEvent, SupportingResource, VariantsEvent } from "./types";
 import { reconcileJob, type JobView } from "./jobs";
 import type { ExportReady } from "./types";
+import { serviceErrorFields } from "./errors";
 
 export const MOCK = process.env.NEXT_PUBLIC_UNFOLD_API === "mock";
 export const DURABLE_JOBS = process.env.NEXT_PUBLIC_UNFOLD_JOBS === "1";
@@ -24,12 +25,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new ApiError((body && (body.message || body.error as string)) || `${res.status} ${res.statusText}`, res.status);
+    const details = serviceErrorFields(body);
+    throw new ApiError((body && (body.message || body.error as string)) || `${res.status} ${res.statusText}`, res.status, details.errorCode, details.retryable);
   }
   return (await res.json()) as T;
 }
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); this.name = "ApiError"; }
+  constructor(message: string, public status: number, public errorCode?: string, public retryable?: boolean) { super(message); this.name = "ApiError"; }
 }
 const post = (url: string, body: unknown, signal?: AbortSignal) =>
   fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
@@ -38,7 +40,8 @@ const post = (url: string, body: unknown, signal?: AbortSignal) =>
 async function* sse<T extends { type: string }>(res: Response): AsyncGenerator<T> {
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => null);
-    throw new Error((body && body.error) || `${res.status} ${res.statusText}`);
+    const details = serviceErrorFields(body);
+    throw new ApiError((body && (body.message || body.error)) || `${res.status} ${res.statusText}`, res.status, details.errorCode, details.retryable);
   }
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = "";

@@ -17,6 +17,7 @@ async function fixture(t, env = {}) {
     "@unfold/agent": {},
   };
   const load = sourceLoader(dependencies, { UNFOLD_DATA_DIR: root, ...env });
+  dependencies["@unfold/agent"] = load("../../../../packages/agent/src/client.ts");
   const core = load("../../../../packages/core/src/index.ts");
   dependencies["@unfold/media"] = { loadLibrary: async () => core.sampleLibrary };
   const { storage, store } = load("./store.ts");
@@ -150,7 +151,7 @@ test("mocked remix boundary receives the canonical current preview without expor
   const { load, plans, dependencies } = await fixture(t);
   const captured = [];
   dependencies["@/lib/auth/execution"] = { createExecution: async () => ({ config: {}, dispose: async () => {} }) };
-  dependencies["@unfold/agent"] = { remixPlan: async (_context, _historical, _message, options) => {
+  dependencies["@unfold/agent"] = { ...dependencies["@unfold/agent"], remixPlan: async (_context, _historical, _message, options) => {
     captured.push(options.currentEdit);
     throw new Error("Fixture stops after request-context inspection");
   } };
@@ -207,7 +208,7 @@ test("fixture-backed generation persists exact received briefs and server proven
   await store.putStyle(A, "primary-a", "requested-style", { profile, sourceUrl: null });
   const modelRequests = [];
   dependencies["@/lib/auth/execution"] = { createExecution: async () => ({ mode: "user-key", config: {}, dispose: async () => {} }) };
-  dependencies["@unfold/agent"] = { generateVariants: async function* (_context, brief, options) {
+  dependencies["@unfold/agent"] = { ...dependencies["@unfold/agent"], generateVariants: async function* (_context, brief, options) {
     const index = modelRequests.length;
     modelRequests.push({ brief, options });
     yield { index: 0, direction: `Fixture direction ${index}`, result: { editPlan: { ...plans["primary-a"], id: `provenance-fixture-${index}` }, agentPlan: core.sampleAgentPlans[0], stats: { outputTokens: 1, tps: 1 } } };
@@ -247,4 +248,83 @@ test("fixture-backed generation persists exact received briefs and server proven
     setUser(A);
   }
   assert.equal((await store.getPlan(A, "plan-primary-a")).generationRequest, undefined);
+});
+
+test("fixture-backed variant failures expose safe known codes and never create a completed plan", async (t) => {
+  const { load, storage, dependencies } = await fixture(t);
+  const { AgentServiceError } = dependencies["@unfold/agent"];
+  let failureCode;
+  let attempts = 0, releases = 0;
+  dependencies["@/lib/auth/execution"] = { createExecution: async () => { attempts++; return { mode: "user-key", config: {}, dispose: async () => { releases++; } }; } };
+  dependencies["@unfold/agent"] = { ...dependencies["@unfold/agent"], generateVariants: async function* () {
+    yield { index: 0, direction: "Fixture failure", errorCode: failureCode, error: "fixture raw provider secret", retryable: true };
+  } };
+  const generate = load("../app/api/variants/route.ts").POST;
+  const codes = ["RATE_LIMITED", "UNAVAILABLE", "AUTH_REJECTED", "CANCELLED", "CONNECTION", "INVALID_RESPONSE", undefined, "FUTURE_UNKNOWN"];
+  for (const code of codes) {
+    failureCode = code;
+    const response = await generate(request({ videoId: "primary-a", prompt: "Preserve this brief", count: 1 }));
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    const events = text.split("\n\n").filter(Boolean).map((event) => ({ type: event.split("\n")[0].slice(7), data: JSON.parse(event.split("\ndata: ")[1]) }));
+    const failure = events.find((event) => event.type === "variant-error").data;
+    if (code && code !== "FUTURE_UNKNOWN") {
+      const expected = new AgentServiceError(code);
+      assert.equal(failure.errorCode, code);
+      assert.equal(failure.message, expected.message);
+      assert.equal(failure.retryable, expected.retryable);
+    } else {
+      assert.equal(failure.errorCode, undefined);
+      assert.doesNotMatch(failure.message, /busy|rate.limit|key|credential/i);
+    }
+    assert.equal(text.includes("raw provider secret"), false);
+    assert.equal(events.some((event) => event.type === "variant"), false);
+    assert.equal(events.find((event) => event.type === "summary").data.ok, 0);
+    assert.equal((await storage.getProject(A, "primary-a")).plans.length, 1);
+    assert.equal(Object.keys((await storage.getProject(A, "primary-a")).leases).length, 0);
+  }
+  assert.equal(attempts, codes.length);
+  assert.equal(releases, codes.length);
+});
+
+test("mocked remix errors preserve safe service codes, discard raw failures and keep the saved edit", async (t) => {
+  const { load, store, storage, dependencies } = await fixture(t);
+  const { AgentServiceError } = dependencies["@unfold/agent"];
+  let failure;
+  let attempts = 0;
+  dependencies["@/lib/auth/execution"] = { createExecution: async () => ({ config: {}, dispose: async () => {} }) };
+  dependencies["@unfold/agent"] = { ...dependencies["@unfold/agent"], remixPlan: async () => { attempts++; throw failure; } };
+  const remix = load("../app/api/remix/route.ts").POST;
+  const original = await store.getPlan(A, "plan-primary-a");
+  const codes = ["RATE_LIMITED", "UNAVAILABLE", "AUTH_REJECTED", "CANCELLED", "CONNECTION", "INVALID_RESPONSE", undefined];
+  for (const code of codes) {
+    failure = code ? new AgentServiceError(code) : new Error("fixture untyped private detail");
+    const response = await remix(request({ planId: "plan-primary-a", message: "Keep my current edit" }));
+    const text = await response.text();
+    const event = text.split("\n\n").find((part) => part.startsWith("event: error\n"));
+    assert.ok(event, text);
+    const safe = JSON.parse(event.slice(event.indexOf("data: ") + 6));
+    assert.equal(safe.errorCode, code);
+    if (code) assert.equal(safe.message, new AgentServiceError(code).message);
+    else assert.doesNotMatch(safe.message, /busy|rate.limit|key|credential/i);
+    assert.equal(text.includes("private"), false);
+    assert.equal(text.includes("event: plan\n"), false);
+    assert.equal((await store.getPlan(A, "plan-primary-a")).revision, original.revision);
+    assert.equal((await storage.getProject(A, "primary-a")).plans.length, 1);
+  }
+  assert.equal(attempts, codes.length);
+});
+
+test("actual abort during execution startup returns cancellation and releases the project lease", async (t) => {
+  const { load, storage, dependencies } = await fixture(t);
+  const controller = new AbortController();
+  dependencies["@/lib/auth/execution"] = { createExecution: async () => { controller.abort("fixture private abort detail"); throw new Error("fixture private connection detail"); } };
+  const generate = load("../app/api/variants/route.ts").POST;
+  const response = await generate(new Request(request({ videoId: "primary-a", count: 1 }), { signal: controller.signal }));
+  assert.equal(response.status, 499);
+  const failure = await response.json();
+  assert.equal(failure.errorCode, "CANCELLED");
+  assert.equal(failure.retryable, false);
+  assert.equal(JSON.stringify(failure).includes("private"), false);
+  assert.equal(Object.keys((await storage.getProject(A, "primary-a")).leases).length, 0);
 });

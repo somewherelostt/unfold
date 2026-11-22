@@ -172,7 +172,8 @@ test("reload settles pending work and retains undoable manual edits", async () =
   const generation = h.actions.generate();
   h.flush();
   const fresh = harness({}, h.storage);
-  assert.equal(fresh.getState().run.status, "cancelled");
+  assert.equal(fresh.getState().run.status, "error");
+  assert.equal(fresh.getState().run.interrupted, true);
   assert.equal(fresh.getState().project.analyzing, false);
   assert.equal(fresh.getState().plans[id].overrides.hookText, "Keep this hook");
   fresh.actions.undo(id);
@@ -534,4 +535,92 @@ test("preview readiness waits for a decoded paused seek and reports real media f
   assert.equal(previewReadiness([{ ...decoded, seeking: true }]), "loading");
   assert.equal(previewReadiness([decoded, { ...decoded, readyState: 2 }]), "ready");
   assert.equal(previewReadiness([decoded, { ...decoded, error: { code: 4 } }]), "error");
+});
+
+test("a rate-limited run retains the uploaded draft and never marks a missing plan complete", async () => {
+  let requests = 0;
+  const h = harness({ uploadSupporting: async () => ({ videoId: "detail-busy" }), async *generateVariants() {
+    requests++;
+    yield { type: "start" };
+    yield { type: "variant-error", index: 0, message: "The editing service is busy. Try again later.", errorCode: "RATE_LIMITED", retryable: true };
+    yield { type: "summary", count: 1, ok: 0 };
+  } });
+  await h.actions.upload({ name: "my-real-clip.mp4", type: "video/mp4" });
+  await h.actions.uploadSupporting("upload", { name: "detail.mp4", type: "video/mp4" });
+  h.actions.setPrompt("Keep the real reaction");
+  await h.actions.generate();
+  const state = h.getState();
+  assert.equal(requests, 1);
+  assert.equal(state.run.status, "error");
+  assert.equal(state.run.errorCode, "RATE_LIMITED");
+  assert.equal(state.run.retryable, true);
+  assert.equal(state.run.slots[0], null);
+  assert.equal(state.project.fileName, "my-real-clip.mp4");
+  assert.equal(state.project.prompt, "Keep the real reaction");
+  assert.equal(state.supporting.upload[0].asset.videoId, "detail-busy");
+  assert.equal(Object.keys(state.plans).length, 0);
+});
+
+test("provider error titles distinguish actual busy, authentication and invalid-response codes", () => {
+  const h = harness();
+  const { generationErrorTitle, serviceErrorFields } = h.load("errors.ts");
+  assert.match(generationErrorTitle({ status: "error", errorCode: "RATE_LIMITED" }), /busy/);
+  assert.match(generationErrorTitle({ status: "error", errorCode: "UNAVAILABLE" }), /unavailable/);
+  assert.match(generationErrorTitle({ status: "error", errorCode: "AUTH_REJECTED" }), /connection/i);
+  assert.doesNotMatch(generationErrorTitle({ status: "error", errorCode: "INVALID_RESPONSE" }), /busy|key/);
+  assert.equal(generationErrorTitle({ status: "error", interrupted: true }), "Request interrupted");
+  assert.equal(serviceErrorFields({ errorCode: "REQUEST_FAILED", retryable: true }).errorCode, undefined);
+  assert.equal(serviceErrorFields({ code: "RATE_LIMITED", retryable: true }).retryable, undefined);
+});
+
+test("a generic non-retryable failure keeps the draft without inventing a provider code", async () => {
+  let requests = 0;
+  const h = harness({ async *generateVariants() {
+    requests++;
+    yield { type: "variant-error", index: 0, message: "Couldn't create this edit.", retryable: false };
+    yield { type: "summary", count: 1, ok: 0 };
+  } });
+  await h.actions.upload({ name: "kelly.webm", type: "video/webm" });
+  h.actions.setPrompt("Keep the original thought");
+  await h.actions.generate();
+  const state = h.getState();
+  assert.equal(requests, 1);
+  assert.equal(state.run.status, "error");
+  assert.equal(state.run.retryable, false);
+  assert.equal(state.run.errorCode, undefined);
+  assert.equal(state.run.slots[0], null);
+  assert.equal(state.project.fileName, "kelly.webm");
+  assert.equal(state.project.prompt, "Keep the original thought");
+  const { serviceErrorFields } = h.load("errors.ts");
+  assert.deepEqual({ ...serviceErrorFields({ errorCode: "REQUEST_FAILED", retryable: false }) }, { retryable: false });
+  assert.equal(serviceErrorFields({ errorCode: "REQUEST_FAILED", retryable: true }).retryable, undefined);
+});
+
+test("an authentication-rejected remix preserves the preview and safe error classification", async () => {
+  const h = harness({ async *remix() { yield { type: "error", message: "The configured connection was rejected.", errorCode: "AUTH_REJECTED", retryable: false }; } });
+  const id = await h.actions.generate();
+  h.actions.override(id, { hookText: "My local hook" });
+  await h.actions.remix(id, "Tighten this");
+  assert.equal(h.usePlan(id).plan.hookText, "My local hook");
+  const reply = h.getState().plans[id].chat.at(-1);
+  assert.equal(reply.errorCode, "AUTH_REJECTED");
+  assert.equal(reply.retryable, false);
+  assert.equal(reply.pending, false);
+  assert.match(reply.text, /configured connection was rejected/);
+});
+
+test("older reload-cancelled drafts migrate to interrupted without retrying or losing the clip", () => {
+  const h = harness();
+  const saved = JSON.parse(JSON.stringify(h.getState()));
+  saved.project.fileName = "kelly.webm";
+  saved.project.videoId = "clean-nasa";
+  saved.run = { status: "cancelled", startedAt: 1, slots: [null], slotErrors: [], error: "Interrupted by a reload." };
+  h.storage.set("unfold.app.v4", JSON.stringify(saved));
+  const restored = harness({}, h.storage);
+  assert.equal(restored.getState().run.status, "error");
+  assert.equal(restored.getState().run.interrupted, true);
+  assert.equal(restored.getState().run.errorCode, undefined);
+  assert.equal(restored.getState().project.fileName, "kelly.webm");
+  assert.equal(restored.getState().project.videoId, "clean-nasa");
+  assert.equal(restored.getState().run.slots[0], null);
 });

@@ -1,7 +1,9 @@
 import "server-only";
 
+export type SseError = { message: string; errorCode?: string; retryable?: boolean };
+
 /** Server-Sent Events response. `run` gets a send(event, data) and should return when done. */
-export function sse(run: (send: (event: string, data: unknown) => void, signal: AbortSignal) => Promise<void>, signal: AbortSignal): Response {
+export function sse(run: (send: (event: string, data: unknown) => void, signal: AbortSignal) => Promise<void>, signal: AbortSignal, formatError?: (error: unknown) => SseError): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -16,7 +18,11 @@ export function sse(run: (send: (event: string, data: unknown) => void, signal: 
       try {
         await run(send, signal);
       } catch (e) {
-        send("error", { message: e instanceof Error ? e.message : String(e) });
+        if (!formatError) send("error", { message: e instanceof Error ? e.message : String(e) });
+        else {
+          try { send("error", formatError(e)); }
+          catch { send("error", { message: "The request could not be completed." }); }
+        }
       } finally {
         clearInterval(ping);
         send("done", {});

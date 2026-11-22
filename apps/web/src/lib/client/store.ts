@@ -12,6 +12,7 @@ import { STYLE_LABEL } from "./styles";
 import { planSteps, planSummary } from "./narrate";
 import { mergeSupporting } from "./broll";
 import { planKey } from "./plan-key";
+import { serviceErrorFields } from "./errors";
 
 type Snap = { base: EditPlan; overrides: Overrides; serverId: string };
 type SavedVersion = { savedPlan: EditPlan; revision?: number; updatedAt?: number };
@@ -30,9 +31,14 @@ export type Run = {
   doneAt?: number;
   slots: (string | null)[]; // plan ids by variant index
   slotErrors: (string | null)[];
+  slotErrorCodes?: (string | null)[];
+  slotRetryable?: (boolean | null)[];
   summary?: { count: number; ok: number; wallMs: number; outputTokens: number; avgTps: number };
   warning?: string;
   error?: string;
+  errorCode?: string;
+  retryable?: boolean;
+  interrupted?: boolean;
   /** Past-tense prep steps for the generating chat (ms since start). */
   log?: { at: number; text: string }[];
 };
@@ -96,7 +102,12 @@ function ensureLoaded() {
     if (raw) {
       const saved = JSON.parse(raw) as State;
       // A run interrupted by a reload can't resume; keep whatever finished.
-      const settle = (r: Run) => (isActive(r) ? { ...r, status: (r.slots?.some(Boolean) ? "done" : "cancelled") as RunStatus, error: r.slots?.some(Boolean) ? undefined : "Interrupted by a reload." } : r);
+      const settle = (r: Run): Run => {
+        if (!isActive(r) && !(r.status === "cancelled" && r.error === "Interrupted by a reload.")) return r;
+        return r.slots?.some(Boolean)
+          ? { ...r, status: "done", warning: "The page reloaded before all edits returned." }
+          : { ...r, status: "error", interrupted: true, error: "The page reloaded before this request finished. Your clip and brief are saved. Check for a finished edit before trying again." };
+      };
       saved.run = settle(saved.run);
       saved.alts = Object.fromEntries(Object.entries(saved.alts ?? {}).map(([k, r]) => [k, settle(r)]));
       saved.planErrors = {};
@@ -567,7 +578,7 @@ export const actions = {
       return first ?? null;
     } catch (e) {
       if (ctrl.signal.aborted) return null;
-      setRun({ status: "error", error: (e as { status?: number })?.status === 404 ? "Your clip or supporting footage isn't available in this account. Return to upload it again; your local draft is preserved." : errMsg(e) });
+      setRun({ status: "error", error: (e as { status?: number })?.status === 404 ? "Your clip or supporting footage isn't available in this account. Return to upload it again; your local draft is preserved." : errMsg(e), ...errorDetails(e) });
       return null;
     } finally {
       if (controllers.get("main") === ctrl) controllers.delete("main");
@@ -598,7 +609,7 @@ export const actions = {
       const prompt = [entry.request?.prompt || base.rationale, `Make takes that differ from “${base.title}”: different hook, pacing, track and caption style.`].join("\n");
       await streamRun({ videoId, prompt, styleId: entry.request?.styleId, aspect: base.aspect, count, supportingAssetIds: (base.supporting ?? []).map((a) => a.videoId) }, ctrl.signal, setAlt, { offset, root });
     } catch (e) {
-      if (!ctrl.signal.aborted) setAlt((r) => ({ ...r, status: "error", error: errMsg(e) }));
+      if (!ctrl.signal.aborted) setAlt((r) => ({ ...r, status: "error", error: errMsg(e), ...errorDetails(e) }));
     } finally {
       if (controllers.get(key) === ctrl) controllers.delete(key);
     }
@@ -731,11 +742,11 @@ export const actions = {
             steps: ["Read your request", "Re-planned the edit", ...items.slice(0, 3).map((i) => `Applied: ${i.charAt(0).toLowerCase()}${i.slice(1)}`), "Rebuilt the timeline"],
             change: { items: items.length ? items : ["No visible changes"], state: "open", revertTo: before },
           });
-        } else if (ev.type === "error") throw new Error(ev.message);
+        } else if (ev.type === "error") throw Object.assign(new Error(ev.message), errorDetails(ev));
       }
       if (!got) updateChat(id, agentId, { text: "No changes came back.", pending: false, workedMs: Date.now() - t0 });
     } catch (err) {
-      updateChat(id, agentId, { text: ctrl.signal.aborted ? "Remix cancelled. Your edit is unchanged." : `Couldn't remix: ${errMsg(err)}`, pending: false, draft: undefined, workedMs: Date.now() - t0 });
+      updateChat(id, agentId, { text: ctrl.signal.aborted ? "Remix cancelled. Your edit is unchanged." : `Couldn't remix: ${errMsg(err)}`, ...errorDetails(err), pending: false, draft: undefined, workedMs: Date.now() - t0 });
     } finally {
       if (controllers.get(key) === ctrl) controllers.delete(key);
     }
@@ -823,12 +834,17 @@ async function streamRun(req: GenerateRequest, signal: AbortSignal, update: (fn:
         });
       } else if (ev.type === "variant-error") {
         update((r) => {
+          const details = errorDetails(ev);
           const slotErrors = [...r.slotErrors];
+          const slotErrorCodes = [...(r.slotErrorCodes ?? [])];
+          const slotRetryable = [...(r.slotRetryable ?? [])];
           slotErrors[offset + ev.index] = ev.message;
-          return { ...r, slotErrors };
+          slotErrorCodes[offset + ev.index] = details.errorCode ?? null;
+          slotRetryable[offset + ev.index] = details.retryable ?? null;
+          return { ...r, slotErrors, slotErrorCodes, slotRetryable };
         });
       } else if (ev.type === "summary") update((r) => ({ ...r, summary: ev }));
-      else if (ev.type === "error") throw new Error(ev.message);
+      else if (ev.type === "error") throw Object.assign(new Error(ev.message), errorDetails(ev));
     }
   } catch (e) {
     if (signal.aborted) throw e;
@@ -844,7 +860,8 @@ async function streamRun(req: GenerateRequest, signal: AbortSignal, update: (fn:
   update((r) => {
     ids = r.slots;
     if (r.status === "done") return r;
-    return r.slots.some(Boolean) ? { ...r, status: "done", doneAt: Date.now() } : { ...r, status: "error", error: r.slotErrors.find(Boolean) ?? "The agent didn't return an edit. Try again." };
+    const firstError = r.slotErrors.findIndex(Boolean);
+    return r.slots.some(Boolean) ? { ...r, status: "done", doneAt: Date.now() } : { ...r, status: "error", error: r.slotErrors[firstError] ?? "The agent didn't return an edit. Try again.", errorCode: r.slotErrorCodes?.[firstError] ?? undefined, retryable: r.slotRetryable?.[firstError] ?? undefined };
   });
   return ids;
 }
@@ -858,6 +875,9 @@ function withSignal<T>(job: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+function errorDetails(error: unknown): { errorCode?: string; retryable?: boolean } {
+  return serviceErrorFields(error);
+}
 const snap = (e: Snap): Snap => ({ base: e.base, overrides: e.overrides, serverId: e.serverId });
 function newEntry(editPlan: EditPlan, stats?: ApiStats, direction?: string): PlanEntry {
   return { base: editPlan, overrides: {}, serverId: editPlan.id, past: [], future: [], chat: [], name: editPlan.title, stats, direction };

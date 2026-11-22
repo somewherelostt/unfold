@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { actions, isActive, usePlan, useStore, type PlanEntry, type Run } from "@/lib/client/store";
+import { generationErrorTitle } from "@/lib/client/errors";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { MenuItem, Popover } from "@/components/ui/Popover";
@@ -77,7 +78,7 @@ export function EditStudio({ id }: { id: string }) {
     void actions.ensurePlan(id);
     void actions.loadLibrary();
   }, [id]);
-  if (planError || access === "checking" || !entry || !plan) {
+  if (planError || access !== "ready" || !entry || !plan) {
     return (
       <Centered>
         {planError ? (
@@ -405,15 +406,15 @@ function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: 
             <div className="absolute inset-0 grid place-items-center p-6 text-center">
               {failed ? (
                 <div className="space-y-3">
-                  <div className="font-display text-[24px] leading-[30px] text-white">{run!.status === "cancelled" ? "Cancelled" : "That didn't work"}</div>
+                  <div className="font-display text-[24px] leading-[30px] text-white">{generationErrorTitle(run!)}</div>
                   {run!.error && <p className="text-[12px] text-white/70">{run!.error}</p>}
                   <div className="flex justify-center gap-2">
                     <Link href="/app" className={buttonClasses("secondary", "sm")}>
                       Back
                     </Link>
-                    <Button size="sm" variant="primary" onClick={() => void actions.generate()}>
-                      Try again
-                    </Button>
+                    {run!.errorCode === "AUTH_REJECTED" ? <Link href="/settings" className={buttonClasses("primary", "sm")}>Open settings</Link> : run!.retryable !== false && !run!.interrupted && <Button size="sm" variant="primary" onClick={() => void actions.generate()}>
+                      {run!.errorCode === "RATE_LIMITED" || run!.errorCode === "UNAVAILABLE" ? "Try again later" : "Try again"}
+                    </Button>}
                   </div>
                 </div>
               ) : (

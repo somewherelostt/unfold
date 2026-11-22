@@ -21,6 +21,64 @@ export type StreamCallbacks = { onDelta?: (text: string, soFar: string) => void 
 
 export type AgentConfig = { url: string; token: string; agentId: string };
 
+export type AgentErrorCode = "RATE_LIMITED" | "UNAVAILABLE" | "AUTH_REJECTED" | "CANCELLED" | "CONNECTION" | "INVALID_RESPONSE";
+const SAFE_ERRORS: Record<AgentErrorCode, string> = {
+  RATE_LIMITED: "Cerebras is busy or rate-limited. Please try again shortly.",
+  UNAVAILABLE: "The editing service is temporarily unavailable. Please try again shortly.",
+  AUTH_REJECTED: "The editing service could not authenticate. Check the connection settings and try again.",
+  CANCELLED: "Editing was cancelled.",
+  CONNECTION: "The editing service could not be reached. Check the connection and try again.",
+  INVALID_RESPONSE: "The editing service returned no usable edit. Please try again.",
+};
+const SERVICE_ERROR_BRAND = Symbol.for("@unfold/agent/AgentServiceError");
+
+/** Only fixed public messages cross the agent/API boundary, never upstream response text. */
+export class AgentServiceError extends Error {
+  declare readonly [SERVICE_ERROR_BRAND]: true;
+  readonly retryable: boolean;
+  constructor(readonly code: AgentErrorCode) {
+    super(SAFE_ERRORS[code]);
+    Object.defineProperty(this, SERVICE_ERROR_BRAND, { value: true });
+    this.name = "AgentServiceError";
+    this.retryable = code !== "AUTH_REJECTED" && code !== "CANCELLED";
+  }
+}
+export function isAgentServiceError(error: unknown): error is AgentServiceError {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as Record<PropertyKey, unknown>;
+  const code = candidate.code;
+  return candidate[SERVICE_ERROR_BRAND] === true && typeof code === "string" && Object.hasOwn(SAFE_ERRORS, code)
+    && candidate.message === SAFE_ERRORS[code as AgentErrorCode]
+    && candidate.retryable === (code !== "AUTH_REJECTED" && code !== "CANCELLED");
+}
+export function classifyAgentError(error: unknown): AgentServiceError {
+  if (isAgentServiceError(error)) return error;
+  if ((error as { name?: string })?.name === "AbortError") return new AgentServiceError("CANCELLED");
+  return new AgentServiceError("INVALID_RESPONSE");
+}
+
+function statusError(status: number): AgentServiceError | undefined {
+  if (status === 429) return new AgentServiceError("RATE_LIMITED");
+  if ([502, 503, 504].includes(status)) return new AgentServiceError("UNAVAILABLE");
+  if ([401, 403].includes(status)) return new AgentServiceError("AUTH_REJECTED");
+  return undefined;
+}
+
+function payloadError(payload: any): AgentServiceError | undefined {
+  const error = payload?.error ?? payload;
+  for (const value of [error?.status, error?.statusCode, error?.code, payload?.status]) {
+    const known = statusError(Number(value));
+    if (known) return known;
+  }
+  const code = String(error?.code ?? error?.type ?? "").toLowerCase();
+  if (["rate_limit_exceeded", "rate_limit_error", "too_many_requests"].includes(code)) return new AgentServiceError("RATE_LIMITED");
+  if (["overloaded_error", "service_unavailable", "server_overloaded"].includes(code)) return new AgentServiceError("UNAVAILABLE");
+  if (["authentication_error", "invalid_api_key", "permission_denied"].includes(code)) return new AgentServiceError("AUTH_REJECTED");
+  // Some gateways retain a status only as the numeric prefix of their error message.
+  const prefix = String(error?.message ?? "").match(/^\s*(?:HTTP\s+)?(429|502|503|504|401|403)\b/i);
+  return prefix ? statusError(Number(prefix[1])) : undefined;
+}
+
 export function agentConfigFromEnv(env: Record<string, string | undefined> = process.env): AgentConfig {
   const url = env.OPENCLAW_GATEWAY_URL ?? "http://127.0.0.1:18890";
   const token = env.OPENCLAW_GATEWAY_TOKEN;
@@ -47,10 +105,17 @@ export async function streamChat(
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
       ...(opts.sessionUser ? { user: opts.sessionUser } : {}),
     }),
+  }).catch((error) => {
+    if (opts.signal?.aborted || error?.name === "AbortError") throw new AgentServiceError("CANCELLED");
+    throw new AgentServiceError("CONNECTION");
   });
   if (!res.ok || !res.body) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`OpenClaw gateway ${res.status}: ${body.slice(0, 400)}`);
+    const body = await res.json().catch(() => null);
+    throw statusError(res.status) ?? payloadError(body) ?? new AgentServiceError("INVALID_RESPONSE");
+  }
+  if (res.headers.get("content-type")?.includes("application/json")) {
+    const body = await res.json().catch(() => null);
+    throw payloadError(body) ?? new AgentServiceError("INVALID_RESPONSE");
   }
 
   const reader = res.body.getReader();
@@ -65,23 +130,17 @@ export async function streamChat(
   let cachedPromptTokens = 0;
   let model = "moonshotai-kimi-k3.1-pro-trial";
 
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
+  const processLine = (line: string) => {
+      if (!line.startsWith("data:")) return;
       const data = line.slice(5).trim();
-      if (data === "[DONE]") continue;
+      if (data === "[DONE]") return;
       let j: any;
       try {
         j = JSON.parse(data);
       } catch {
-        continue;
+        throw new AgentServiceError("INVALID_RESPONSE");
       }
+      if (j.error || j.type === "error") throw payloadError(j) ?? new AgentServiceError("INVALID_RESPONSE");
       if (j.usage?.completion_tokens) {
         reasoningTokens = j.usage.completion_tokens_details?.reasoning_tokens ?? 0;
         usageTokens = j.usage.completion_tokens - reasoningTokens;
@@ -99,8 +158,28 @@ export async function streamChat(
           cb.onDelta?.(s, text);
         }
       }
+  };
+  try {
+    for (;;) {
+      const { value, done } = await reader.read().catch((error) => {
+        if (opts.signal?.aborted || error?.name === "AbortError") throw new AgentServiceError("CANCELLED");
+        throw new AgentServiceError("CONNECTION");
+      });
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        processLine(buf.slice(0, nl).trim());
+        buf = buf.slice(nl + 1);
+      }
     }
+    buf += decoder.decode();
+    if (buf.trim()) processLine(buf.trim());
+  } finally {
+    await reader.cancel().catch(() => {});
   }
+  if (opts.signal?.aborted) throw new AgentServiceError("CANCELLED");
+  if (!text.trim()) throw new AgentServiceError("INVALID_RESPONSE");
   const end = performance.now();
   // Fall back to a char-based estimate if the gateway doesn't forward usage.
   const outputTokens = usageTokens ?? Math.max(deltas, Math.round(text.length / 3.6));
@@ -125,7 +204,7 @@ export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const src = fenced ? fenced[1] : text;
   const start = src.indexOf("{");
-  if (start < 0) throw new Error("No JSON object in agent reply");
+  if (start < 0) throw new AgentServiceError("INVALID_RESPONSE");
   let depth = 0;
   let inStr = false;
   let esc = false;
@@ -139,7 +218,10 @@ export function extractJson(text: string): unknown {
     }
     if (ch === '"') inStr = true;
     else if (ch === "{") depth++;
-    else if (ch === "}" && --depth === 0) return JSON.parse(src.slice(start, i + 1));
+    else if (ch === "}" && --depth === 0) {
+      try { return JSON.parse(src.slice(start, i + 1)); }
+      catch { throw new AgentServiceError("INVALID_RESPONSE"); }
+    }
   }
-  throw new Error("Unterminated JSON in agent reply");
+  throw new AgentServiceError("INVALID_RESPONSE");
 }

@@ -6,6 +6,7 @@ import { getAnalysis, getLibrary, frameLoader, resolveSupporting, storage, store
 import { StorageError } from "@/server/private-storage";
 import { apiError } from "@/server/api-errors";
 import { sse } from "@/server/sse";
+import { agentErrorPayload, variantErrorPayload } from "@/server/agent-errors";
 
 export const maxDuration = 300;
 const Input = z.object({ videoId: z.string(), prompt: z.string().max(8000).default(""), styleId: z.string().optional(), aspect: z.enum(["9:16", "1:1", "16:9"]).optional(), count: z.number().int().min(1).max(9).default(1), supportingAssetIds: z.array(z.string()).max(4).default([]) });
@@ -47,10 +48,16 @@ export async function POST(req: Request) {
             };
             const stored = await store.putPlan(user, primary.projectId, { editPlan: variant.result.editPlan, agentPlan: variant.result.agentPlan, videoId: analysis.videoId, createdAt: Date.now(), generationRequest });
             send("variant", { index: variant.index, direction: variant.direction, editPlan: stored.editPlan, agentPlan: stored.agentPlan, stats: variant.result.stats, projectId: primary.projectId, revision: stored.revision, updatedAt: stored.updatedAt, generationRequest: stored.generationRequest });
-          } else send("variant-error", { index: variant.index, message: "OpenClaw could not complete this edit. Check your Cerebras key and try again." });
+          } else send("variant-error", { index: variant.index, ...variantErrorPayload(variant.errorCode, signal) });
         }
         send("summary", { count, ok, wallMs: Date.now() - startedAt, outputTokens: tokens, avgTps: ok ? Math.round(tpsSum / ok) : 0 });
       } finally { try { await execution.dispose(); } finally { await release(); } }
-    }, req.signal);
-  } catch (error) { return apiError(error); }
+    }, req.signal, (error) => agentErrorPayload(error, req.signal));
+  } catch (error) {
+    if (req.signal.aborted) {
+      const failure = agentErrorPayload(error, req.signal);
+      return Response.json({ error: failure.message, ...failure }, { status: 499 });
+    }
+    return apiError(error);
+  }
 }

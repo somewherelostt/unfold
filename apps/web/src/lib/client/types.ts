@@ -54,15 +54,15 @@ export type SupportingResource = {
 export type VariantsEvent =
   | { type: "start"; count: number; startedAt: number }
   | { type: "variant"; index: number; direction?: string; editPlan: EditPlan; agentPlan?: AgentPlan; stats: ApiStats }
-  | { type: "variant-error"; index: number; message: string }
+  | { type: "variant-error"; index: number; message: string; errorCode?: string; retryable?: boolean }
   | { type: "summary"; count: number; ok: number; wallMs: number; outputTokens: number; avgTps: number }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; errorCode?: string; retryable?: boolean };
 
 /** SSE events from POST /api/remix. */
 export type RemixEvent =
   | { type: "delta"; text: string }
   | { type: "plan"; editPlan: EditPlan; agentPlan?: AgentPlan; stats: ApiStats; reply?: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; errorCode?: string; retryable?: boolean };
 
 /** SSE events from POST /api/export. */
 export type ExportSettings = { resolution: "720p" | "1080p"; burnCaptions: boolean };
@@ -116,6 +116,8 @@ export type ChatMsg =
       startedAt?: number;
       workedMs?: number;
       steps?: string[];
+      errorCode?: string;
+      retryable?: boolean;
       /** What the remix changed; `revertTo` restores the plan from before it. */
       change?: { items: string[]; state: "open" | "kept" | "reverted"; revertTo?: { base: EditPlan; overrides: Overrides; serverId: string } };
     };

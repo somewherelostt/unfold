@@ -10,12 +10,13 @@ import {
   type MediaAnalysis,
   type SupportingFootage,
 } from "@unfold/core";
-import { agentConfigFromEnv, extractJson, streamChat, type AgentConfig, type StreamStats } from "./client";
+import { agentConfigFromEnv, classifyAgentError, extractJson, streamChat, type AgentConfig, type AgentErrorCode, type StreamStats } from "./client";
 import { ADAPTIVE_DIRECTION, VARIANT_DIRECTIONS, planRequest, remixRequest, styleRequest } from "./prompt";
 
 export type FrameLoader = (url: string) => Promise<string>; // web path → data URL (base64 jpeg)
 
 export type PlanResult = { agentPlan: AgentPlan; editPlan: EditPlan; stats: StreamStats; raw: string };
+export type VariantResult = { index: number; direction: string; result?: PlanResult; error?: string; errorCode?: AgentErrorCode; retryable?: boolean };
 
 export type AgentContext = {
   analysis: MediaAnalysis;
@@ -166,12 +167,12 @@ export async function* generateVariants(
   ctx: AgentContext,
   brief: string,
   opts: { count?: number; style?: StyleProfile | null; aspect?: string; signal?: AbortSignal } = {},
-): AsyncGenerator<{ index: number; direction: string; result?: PlanResult; error?: string }> {
+): AsyncGenerator<VariantResult> {
   const cfg = ctx.config ?? agentConfigFromEnv();
   const frames = await frameInputs(ctx);
   const supporting = await supportingInputs(ctx);
   const count = Math.min(opts.count ?? 9, VARIANT_DIRECTIONS.length);
-  const pending = new Map<number, Promise<{ index: number; direction: string; result?: PlanResult; error?: string }>>();
+  const pending = new Map<number, Promise<VariantResult>>();
   for (let i = 0; i < count; i++) {
     const direction = count === 1 ? ADAPTIVE_DIRECTION : VARIANT_DIRECTIONS[i];
     const messages = planRequest({ analysis: frames.analysis, library: ctx.library, frameDataUrls: frames.urls, supporting, brief, direction, style: opts.style, aspect: opts.aspect });
@@ -179,7 +180,10 @@ export async function* generateVariants(
       i,
       streamChat(messages, cfg, {}, { signal: opts.signal })
         .then(({ text, stats }) => ({ index: i, direction, result: toResult(text, stats, { ...ctx, supporting: supporting.map((s) => s.footage) }) }))
-        .catch((e: unknown) => ({ index: i, direction, error: e instanceof Error ? e.message : String(e) })),
+        .catch((e: unknown) => {
+          const error = classifyAgentError(e);
+          return { index: i, direction, error: error.message, errorCode: error.code, retryable: error.retryable };
+        }),
     );
   }
   while (pending.size) {
