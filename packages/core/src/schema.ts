@@ -31,8 +31,36 @@ export const MediaAnalysis = z.object({
   scenes: z.array(Scene),
   frames: z.array(Frame), // sampled stills for the agent (image input)
   loudness: z.array(z.object({ t: z.number(), db: z.number() })).default([]), // ~4Hz envelope, for hype moments
+  warnings: z.array(z.string()).optional(),
 });
 export type MediaAnalysis = z.infer<typeof MediaAnalysis>;
+
+export type SupportingFootage = { name: string; description: string; analysis: MediaAnalysis };
+export const SupportingInput = z.object({
+  videoId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
+  name: z.string().min(1).max(160),
+  description: z.string().max(500).default(""),
+});
+export type SupportingInput = z.infer<typeof SupportingInput>;
+export const BrollPurpose = z.enum(["proof", "process", "context", "reaction", "explanation"]);
+export const BrollSelection = z.object({
+  assetId: z.string(),
+  srcStart: z.number().nonnegative(),
+  srcEnd: z.number().positive(),
+  atSrcTime: z.number().nonnegative(),
+  segmentIndex: z.number().int().nonnegative(),
+  evidenceFrameTime: z.number().nonnegative(),
+  purpose: BrollPurpose,
+  reason: z.string().min(8).max(400),
+  fit: z.enum(["cover", "contain"]).optional(),
+});
+export const QualityReport = z.object({
+  passed: z.boolean(),
+  checks: z.array(z.string()),
+  errors: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type QualityReport = z.infer<typeof QualityReport>;
 
 // ---------- Asset library (assets/*/manifest.json) ----------
 export const MusicTrack = z.object({
@@ -140,6 +168,7 @@ export const AgentPlan = z.object({
   zooms: z.array(z.object({ srcTime: z.number(), kind: z.enum(["punch", "slow-push"]), scale: z.number().min(1).max(1.8).default(1.25) })).default([]),
   sfx: z.array(z.object({ srcTime: z.number(), sfxId: z.string(), volume: z.number().min(0).max(1).default(0.8) })).default([]),
   overlays: z.array(z.object({ srcTime: z.number(), text: z.string(), durationSec: z.number().default(1.2) })).default([]),
+  broll: z.array(BrollSelection).max(12).optional(),
 });
 export type AgentPlan = z.infer<typeof AgentPlan>;
 
@@ -156,6 +185,14 @@ export const EditPlan = z.object({
   height: z.number(),
   durationSec: z.number(),
   source: z.object({ videoId: z.string(), src: z.string(), width: z.number(), height: z.number() }),
+  supporting: z.array(z.object({
+    videoId: z.string(), name: z.string(), description: z.string(), src: z.string(),
+    width: z.number(), height: z.number(), durationSec: z.number(), frames: z.array(Frame),
+  })).max(4).optional(),
+  broll: z.array(BrollSelection.extend({
+    id: z.string(), clipId: z.string(), start: z.number(), end: z.number(),
+  })).optional(),
+  quality: QualityReport.optional(),
   hookText: z.string().nullable(),
   clips: z.array(
     z.object({ id: z.string(), start: z.number(), end: z.number(), srcStart: z.number(), srcEnd: z.number(), speed: z.number() }),
@@ -188,6 +225,8 @@ export const EditPlan = z.object({
     .default(null),
 });
 export type EditPlan = z.infer<typeof EditPlan>;
+export type SupportingAsset = NonNullable<EditPlan["supporting"]>[number];
+export type BrollPlacement = NonNullable<EditPlan["broll"]>[number];
 
 export const ASPECT_SIZE: Record<Aspect, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },

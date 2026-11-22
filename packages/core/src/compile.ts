@@ -6,6 +6,7 @@ import {
   type MusicTrack,
   type SfxItem,
   type TransitionType,
+  type SupportingFootage,
 } from "./schema";
 
 export type Library = { music: MusicTrack[]; sfx: SfxItem[] };
@@ -48,19 +49,20 @@ export function compileEditPlan(
   plan: AgentPlan,
   analysis: MediaAnalysis,
   library: Library,
-  opts: { id: string; stats?: EditPlan["stats"] } = { id: "plan" },
+  opts: { id: string; stats?: EditPlan["stats"]; supporting?: SupportingFootage[] } = { id: "plan" },
 ): EditPlan {
   const srcDur = analysis.durationSec;
 
   // 1. Sanitize segments.
   const segments = plan.segments
-    .map((s) => ({
+    .map((s, originalIndex) => ({
       srcStart: Math.max(0, Math.min(s.srcStart, srcDur)),
       srcEnd: Math.max(0, Math.min(s.srcEnd, srcDur)),
       speed: s.speed ?? 1,
+      originalIndex,
     }))
     .filter((s) => s.srcEnd - s.srcStart >= MIN_CLIP_SEC);
-  if (segments.length === 0) segments.push({ srcStart: 0, srcEnd: srcDur, speed: 1 });
+  if (segments.length === 0) segments.push({ srcStart: 0, srcEnd: srcDur, speed: 1, originalIndex: -1 });
 
   let clips = layoutClips(segments);
 
@@ -137,9 +139,12 @@ export function compileEditPlan(
   flush();
 
   // 4. Cues.
-  const transitions = plan.transitions
-    .filter((t) => t.afterSegment >= 0 && t.afterSegment < clips.length - 1)
-    .map((t) => ({ at: clips[t.afterSegment].end, type: t.type, durationSec: TRANSITION_SEC[t.type] }));
+  const transitions = plan.transitions.flatMap((t) => {
+    const index = segments.findIndex((s) => s.originalIndex === t.afterSegment);
+    if (index < 0 || index >= clips.length - 1) return [];
+    const at = clips[index].end;
+    return [{ at, type: t.type, durationSec: Math.min(TRANSITION_SEC[t.type], durationSec - at) }];
+  });
 
   const zooms = plan.zooms.flatMap((z) => {
     const start = mapSrcToOut(clips, z.srcTime);
@@ -163,6 +168,25 @@ export function compileEditPlan(
 
   const { width, height } = ASPECT_SIZE[plan.aspect];
 
+  const supporting = (opts.supporting ?? []).map(({ name, description, analysis: a }) => ({
+    videoId: a.videoId, name, description, src: a.src, width: a.width, height: a.height,
+    durationSec: a.durationSec, frames: a.frames,
+  }));
+  const broll: NonNullable<EditPlan["broll"]> = [];
+  for (const selection of [...(plan.broll ?? [])].sort((a, b) => a.atSrcTime - b.atSrcTime)) {
+    if (![selection.srcStart, selection.srcEnd, selection.atSrcTime, selection.evidenceFrameTime].every(Number.isFinite) || selection.srcStart < 0) continue;
+    const asset = supporting.find((a) => a.videoId === selection.assetId);
+    const clip = clips[segments.findIndex((s) => s.originalIndex === selection.segmentIndex)];
+    if (clip && (selection.atSrcTime < clip.srcStart || selection.atSrcTime >= clip.srcEnd)) continue;
+    if (!asset || !clip || selection.srcEnd > asset.durationSec || selection.srcEnd <= selection.srcStart) continue;
+    if (!asset.frames.some((f) => Math.abs(f.t - selection.evidenceFrameTime) < 0.02)) continue;
+    if (selection.evidenceFrameTime < selection.srcStart || selection.evidenceFrameTime >= selection.srcEnd) continue;
+    const start = round(clip.start + (selection.atSrcTime - clip.srcStart) / clip.speed);
+    const end = round(Math.min(start + selection.srcEnd - selection.srcStart, clip.end));
+    if (end - start < MIN_CLIP_SEC || selection.evidenceFrameTime >= selection.srcStart + end - start || broll.some((b) => b.start < end && b.end > start)) continue;
+    broll.push({ ...selection, id: `b${broll.length}`, clipId: clip.id, start, end, srcEnd: round(selection.srcStart + end - start) });
+  }
+
   return {
     version: 1,
     id: opts.id,
@@ -175,6 +199,8 @@ export function compileEditPlan(
     height,
     durationSec: round(durationSec),
     source: { videoId: analysis.videoId, src: analysis.src, width: analysis.width, height: analysis.height },
+    supporting,
+    broll,
     hookText: plan.hookText,
     clips,
     captions: {

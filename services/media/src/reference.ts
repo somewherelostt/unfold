@@ -4,6 +4,8 @@ import path from "node:path";
 import type { MediaAnalysis } from "../../../packages/core/src/schema.ts";
 import { analyzeVideo, type AnalyzeOptions } from "./analyze.ts";
 import { MEDIA_DIR, DOWNLOADER_BIN, newVideoId, round, run, timed } from "./util.ts";
+import { resolvePublicReferenceUrl } from "./reference-url.ts";
+import { MediaError } from "./errors.ts";
 
 export interface CutStats {
   shots: number;
@@ -49,25 +51,32 @@ export function cutStats(a: MediaAnalysis): CutStats {
 }
 
 /**
- * Download an inspiration video (any short-form or long-form video link) with the video downloader,
+ * Download a public platform inspiration video with the video downloader,
  * then analyse it like an upload and add cut-rate stats. Caps at 1080p, first 3 minutes.
  */
 export async function fetchReference(url: string, opts: AnalyzeOptions & { maxSeconds?: number } = {}): Promise<ReferenceAnalysis> {
+  const maxS = opts.maxSeconds ?? 180;
+  if (!Number.isFinite(maxS) || maxS <= 0 || maxS > 180) throw new MediaError("DURATION_LIMIT", "Reference analysis supports up to 180 seconds. Upload a shorter reference clip.");
+  if (opts.videoId && !/^[A-Za-z0-9_-]{1,80}$/.test(opts.videoId)) throw new MediaError("INVALID_MEDIA", "Invalid media identifier.");
+  const safeUrl = await resolvePublicReferenceUrl(url, opts.signal);
   const timings: Record<string, number> = {};
   const refId = opts.videoId ?? `ref-${newVideoId()}`;
   const dlDir = path.join(opts.mediaDir ?? MEDIA_DIR, refId);
   await mkdir(dlDir, { recursive: true });
-  const maxS = opts.maxSeconds ?? 180;
   const meta = await timed(timings, "download", async () => {
     const r = await run(DOWNLOADER_BIN, [
-      "--no-playlist", "--no-progress", "--restrict-filenames",
+      "--ignore-config", "--no-cache-dir", "--no-playlist", "--no-progress", "--restrict-filenames",
+      "--use-extractors", "default,-generic", "--socket-timeout", "15", "--retries", "1", "--fragment-retries", "1", "--max-filesize", "100M",
       "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b",
       "--merge-output-format", "mp4",
       "--download-sections", `*0-${maxS}`,
       "--print-json", "--no-simulate",
       "-o", path.join(dlDir, "input.%(ext)s"),
-      url,
-    ]);
+      safeUrl,
+    ], { signal: opts.signal, timeoutMs: 120_000 }).catch((error) => {
+      if (error instanceof MediaError) throw error;
+      throw new MediaError("REFERENCE_URL", "The reference could not be downloaded. Upload the reference video file instead.");
+    });
     const line = r.stdout.trim().split("\n").filter((l) => l.startsWith("{")).pop();
     return line ? JSON.parse(line) : {};
   });

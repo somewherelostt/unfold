@@ -1,8 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compileEditPlan, mapSrcToOut, sampleAgentPlans, sampleAnalysis, sampleLibrary } from "@unfold/core";
-import { analyzeStyle, generateVariants, normalizePlan } from "../src/agent";
+import { AgentPlan, EditPlan, checkEditQuality, compileEditPlan, mapSrcToOut, sampleAgentPlans, sampleAnalysis, sampleLibrary, type SupportingFootage } from "@unfold/core";
+import { analyzeStyle, generateVariants, normalizePlan, remixPlan } from "../src/agent";
 import { describeClip, describeStyle } from "../src/prompt";
+
+const narration = { ...sampleAnalysis, durationSec: 12, words: [
+  { text: "The", start: 0.2, end: 0.45 }, { text: "button", start: 0.5, end: 0.8 },
+  { text: "starts", start: 0.9, end: 1.2 }, { text: "it.", start: 1.3, end: 1.6 },
+  { text: "See", start: 4.2, end: 4.5 }, { text: "the", start: 4.6, end: 4.8 }, { text: "result.", start: 4.9, end: 5.3 },
+] };
+const supporting: SupportingFootage[] = ["detail", "result"].map((id) => ({ name: id, description: `Supplied ${id} footage`, analysis: {
+  ...sampleAnalysis, videoId: id, src: `/media/${id}/source.mp4`, hasSpeech: false, words: [], durationSec: 4,
+  frames: [{ t: 0.2, url: `/media/${id}/frames/first.jpg` }, { t: 2.2, url: `/media/${id}/frames/second.jpg` }],
+} }));
+const shot = (overrides: Partial<NonNullable<AgentPlan["broll"]>[number]> = {}): NonNullable<AgentPlan["broll"]>[number] => ({
+  assetId: "detail", srcStart: 0, srcEnd: 1, segmentIndex: 0, atSrcTime: 0.5,
+  evidenceFrameTime: 0.2, purpose: "proof", reason: "Shows the button described in the narration.", ...overrides,
+});
+const brollPlan = (broll: NonNullable<AgentPlan["broll"]> = []): AgentPlan => ({
+  ...sampleAgentPlans[1], segments: [{ srcStart: 0, srcEnd: 6, speed: 1 }], music: null, transitions: [], zooms: [], sfx: [], overlays: [], broll,
+});
 
 const context = { analysis: sampleAnalysis, library: sampleLibrary };
 
@@ -73,7 +90,7 @@ test("single-edit generation uses adaptive direction and labels only the frames 
     assert.match(String(requests[0].messages.at(-1)?.content), /THIS VARIANT: Adaptive edit:/);
     const evidence = requests[0].messages[1].content;
     assert.ok(Array.isArray(evidence));
-    assert.match(evidence[0].text!, /FRAMES: 2 images attached in time order at seconds 0, 16/);
+    assert.match(evidence[0].text!, /FRAMES: 2 images attached in time order at exact seconds 0, 16/);
     assert.deepEqual(evidence.filter((part) => part.type === "image_url").map((part) => part.image_url?.url), ["data:image/jpeg;base64,/frame-0.jpg", "data:image/jpeg;base64,/frame-16.jpg"]);
   } finally {
     globalThis.fetch = previous;
@@ -154,4 +171,140 @@ test("visual references cannot manufacture music or sound-effect evidence", asyn
   } finally {
     globalThis.fetch = previous;
   }
+});
+
+test("two supporting assets cover pictures while primary speech and legacy plans remain intact", () => {
+  const request = brollPlan([shot(), shot({ assetId: "result", atSrcTime: 4.2, purpose: "reaction", reason: "Shows the result named by the speaker.", fit: "contain" })]);
+  const edit = compileEditPlan(request, narration, sampleLibrary, { id: "broll", supporting });
+  assert.equal(edit.supporting?.length, 2);
+  assert.deepEqual(edit.broll?.map((s) => [s.assetId, s.start, s.end]), [["detail", 0.5, 1.5], ["result", 4.2, 5.2]]);
+  assert.equal(edit.broll?.[1].fit, "contain");
+  const without = compileEditPlan({ ...request, broll: [] }, narration, sampleLibrary);
+  assert.deepEqual(edit.clips, without.clips);
+  assert.deepEqual(edit.captions, without.captions);
+  assert.equal(checkEditQuality(edit, narration).passed, true);
+  const { supporting: _assets, broll: _broll, quality: _quality, ...legacy } = without;
+  assert.equal(EditPlan.safeParse(legacy).success, true);
+});
+
+test("supporting evidence labels preserve exact frame timestamps and source duration", () => {
+  const description = describeClip({ ...supporting[0].analysis, durationSec: 2.786, frames: [{ t: 0.15, url: "/media/detail/frame.jpg" }] });
+  assert.match(description, /CLIP: 2\.786s/);
+  assert.match(description, /exact seconds 0\.15/);
+});
+
+test("supporting placement identifies the exact repeated occurrence and respects primary playback speed", () => {
+  const request = { ...brollPlan([shot({ segmentIndex: 0, atSrcTime: 4.6 }), shot({ assetId: "result", segmentIndex: 2, atSrcTime: 4.6 })]), segments: [
+    { srcStart: 4, srcEnd: 6, speed: 1 }, { srcStart: 0, srcEnd: 3, speed: 1 }, { srcStart: 4, srcEnd: 6, speed: 0.5 },
+  ] };
+  const edit = compileEditPlan(request, narration, sampleLibrary, { id: "repeat", supporting });
+  assert.deepEqual(edit.broll?.map((s) => [s.clipId, s.start, s.end]), [["c0", 0.6, 1.6], ["c2", 6.2, 7.2]]);
+  assert.equal(checkEditQuality(edit, narration).passed, true);
+});
+
+test("missing footage, invalid trims, invented evidence, removed anchors and overlaps cannot compile into B-roll", () => {
+  const invalid = [
+    shot({ assetId: "not-supplied" }), shot({ srcEnd: 10 }), shot({ srcStart: 2, srcEnd: 1 }), shot({ srcStart: -1 }), shot({ atSrcTime: Number.NaN }),
+    shot({ evidenceFrameTime: 0.8 }), shot({ atSrcTime: 7 }), shot({ segmentIndex: 9 }),
+  ];
+  assert.deepEqual(compileEditPlan(brollPlan(invalid), narration, sampleLibrary, { id: "invalid", supporting }).broll, []);
+  const normalized = normalizePlan(brollPlan(invalid), { analysis: narration, library: sampleLibrary, supporting });
+  assert.equal(normalized.broll?.some((s) => s.assetId === "not-supplied"), false);
+  assert.deepEqual(compileEditPlan(brollPlan([shot(), shot({ assetId: "result", atSrcTime: 0.8 })]), narration, sampleLibrary, { id: "overlap", supporting }).broll?.map((s) => s.assetId), ["detail"]);
+});
+
+test("invalid segment removal remaps supporting anchors and transitions without changing their source occurrence", () => {
+  const request = { ...brollPlan([shot({ segmentIndex: 1 })]), segments: [
+    { srcStart: 8, srcEnd: 8.1, speed: 1 }, { srcStart: 0, srcEnd: 2, speed: 1 }, { srcStart: 4, srcEnd: 6, speed: 1 },
+  ], transitions: [{ afterSegment: 0, type: "flash" as const }, { afterSegment: 1, type: "whip" as const }] };
+  const normalized = normalizePlan(request, { analysis: narration, library: sampleLibrary, supporting });
+  assert.equal(normalized.broll?.[0].segmentIndex, 0);
+  assert.deepEqual(normalized.transitions, [{ afterSegment: 0, type: "whip" }]);
+  const direct = compileEditPlan(request, narration, sampleLibrary, { id: "direct", supporting });
+  const repaired = compileEditPlan(normalized, narration, sampleLibrary, { id: "normalized", supporting });
+  assert.deepEqual(direct.broll?.map((s) => [s.start, s.clipId]), [[0.5, "c0"]]);
+  assert.deepEqual(direct.transitions, repaired.transitions);
+  assert.equal(direct.transitions[0].type, "whip");
+});
+
+test("beat changes use the final narration layout, and a supporting trim stops before its anchor segment ends", () => {
+  const quiet = { ...narration, hasSpeech: false, words: [] };
+  const lib = { ...sampleLibrary, music: [{ ...sampleLibrary.music[0], beats: [0, 2, 4, 6, 8], downbeats: [0], dropAt: null }] };
+  const request = { ...brollPlan([shot({ segmentIndex: 1, atSrcTime: 4.5, srcEnd: 3 })]), segments: [
+    { srcStart: 0, srcEnd: 2.2, speed: 1 }, { srcStart: 4, srcEnd: 6, speed: 1 },
+  ], music: { trackId: lib.music[0].id, volume: 0.1, alignDropToSrc: null, snapCutsToBeats: true } };
+  const edit = compileEditPlan(request, quiet, lib, { id: "beats", supporting });
+  assert.deepEqual(edit.broll?.map((s) => [s.start, s.end, s.srcEnd]), [[2.5, 4, 1.5]]);
+  assert.equal(checkEditQuality(edit, quiet).passed, true);
+});
+
+test("quality gates reject wrong-time captions using valid vocabulary and invalid cue interval ends", () => {
+  const edit = compileEditPlan(brollPlan([shot()]), narration, sampleLibrary, { id: "checks", supporting });
+  const wrongWords = { ...edit, captions: { ...edit.captions, chunks: [{ start: 0.2, end: 0.45, words: [{ text: "result.", start: 0.2, end: 0.45, emphasis: false }] }] } };
+  assert.equal(checkEditQuality(wrongWords, narration).passed, false);
+  assert.match(checkEditQuality(wrongWords, narration).errors.join(" "), /speech at that time/);
+  const wrongEnds = { ...edit, overlays: [{ start: 5, end: 9, text: "Too late" }], zooms: [{ start: 5, end: 4, scale: 1.1, kind: "punch" as const }], transitions: [{ at: 5.9, type: "flash" as const, durationSec: 1 }] };
+  assert.match(checkEditQuality(wrongEnds).errors.join(" "), /effect interval|transition interval/);
+  const forged = { ...edit, broll: edit.broll!.map((s) => ({ ...s, assetId: "not-owned" })) };
+  assert.equal(checkEditQuality(forged).passed, false);
+});
+
+test("judgmental editorial checks remain reviewable warnings and unavailable checks are disclosed", () => {
+  const edit = compileEditPlan(brollPlan([shot()]), narration, sampleLibrary, { id: "review", supporting });
+  const report = checkEditQuality({ ...edit, hookText: "The fastest result ever" }, narration);
+  assert.equal(report.passed, true);
+  assert.match(report.warnings.join(" "), /wording needs editorial review/);
+  assert.match(report.warnings.join(" "), /do not establish semantic fit/);
+  const withoutAnalysis = checkEditQuality(edit);
+  assert.equal(withoutAnalysis.checks.includes("Speech boundaries"), false);
+  assert.equal(withoutAnalysis.checks.includes("Caption/transcript alignment"), false);
+  assert.match(withoutAnalysis.warnings.join(" "), /were not checked/);
+  const limited = { ...narration, warnings: ["Some recognized speech had no valid word timing."] };
+  assert.ok(checkEditQuality(edit, limited).warnings.includes(limited.warnings[0]));
+  assert.match(describeClip(limited), /ANALYSIS LIMITS/);
+});
+
+test("a planner can leave supplied but unhelpful cutaways unused and receives the research rubric", async () => {
+  const previous = globalThis.fetch;
+  let body: any;
+  globalThis.fetch = async (_url, init) => {
+    body = JSON.parse(String(init?.body));
+    const chunk = { choices: [{ delta: { content: JSON.stringify(brollPlan([])) } }] };
+    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const results = [];
+    for await (const r of generateVariants({ analysis: narration, library: sampleLibrary, supporting, loadFrame: async (url) => `data:image/jpeg;base64,${url}`, config: { url: "https://agent-test.invalid", token: "test", agentId: "test" } }, "Keep the speaker visible; these details are unrelated", { count: 1 })) results.push(r);
+    assert.equal(results[0].error, undefined);
+    assert.deepEqual(results[0].result?.editPlan.broll, []);
+    assert.equal(results[0].result?.editPlan.quality?.passed, true);
+    assert.match(body.messages[0].content, /Research-derived editing decisions/);
+    assert.match(JSON.stringify(body.messages[1].content), /SUPPORTING FOOTAGE assetId=detail/);
+    assert.match(body.messages[0].content, /Empty broll is a valid choice/);
+  } finally { globalThis.fetch = previous; }
+});
+
+test("remix receives authoritative manual caption and cutaway state while legacy calls remain valid", async () => {
+  const previous = globalThis.fetch;
+  const requests: any[] = [];
+  globalThis.fetch = async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    const chunk = { choices: [{ delta: { content: JSON.stringify(brollPlan([])) } }] };
+    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const current = brollPlan([shot()]);
+    const compiled = compileEditPlan(current, narration, sampleLibrary, { id: "manual-preview", supporting });
+    const manual: EditPlan = { ...compiled, broll: [], music: null, captions: { ...compiled.captions, enabled: false, preset: "story", design: { typeface: "serif", fontScale: 0.8, weight: "regular", textColor: "#EEEEEE", highlightMode: "none", animation: "none", outline: false } } };
+    const ctx = { analysis: narration, library: sampleLibrary, supporting, loadFrame: async (url: string) => `data:image/jpeg;base64,${url}`, config: { url: "https://agent-test.invalid", token: "test", agentId: "test" } };
+    await remixPlan(ctx, current, "Keep this design; shorten the opening", { currentEdit: manual });
+    const prompt = requests[0].messages.at(-1).content;
+    assert.match(prompt, /AUTHORITATIVE CURRENT EDIT/);
+    assert.ok(prompt.includes(JSON.stringify(manual)));
+    assert.match(prompt, /Do not restore disabled or removed layers/);
+    assert.equal(JSON.parse(requests[0].messages[2].content).broll.length, 1);
+    await remixPlan(ctx, current, "Leave the story intact");
+    assert.doesNotMatch(requests[1].messages.at(-1).content, /AUTHORITATIVE CURRENT EDIT/);
+    assert.match(requests[1].messages.at(-1).content, /the plan above/);
+  } finally { globalThis.fetch = previous; }
 });

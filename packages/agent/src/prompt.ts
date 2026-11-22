@@ -1,4 +1,5 @@
-import type { Library, MediaAnalysis, StyleProfile, AgentPlan } from "@unfold/core";
+import type { Library, MediaAnalysis, StyleProfile, AgentPlan, EditPlan, SupportingFootage } from "@unfold/core";
+import { RESEARCH_EDITORIAL_GUIDE } from "./editorial";
 
 /** JSON shape the model must return (kept short: it's sent with every request). */
 export const AGENT_PLAN_SHAPE = `{
@@ -13,7 +14,8 @@ export const AGENT_PLAN_SHAPE = `{
   "transitions": [{"afterSegment": int, "type": "cut"|"whip"|"zoom-punch"|"flash"|"shake"|"glitch"|"slide"}],
   "zooms": [{"srcTime": number, "kind": "punch"|"slow-push", "scale": 1-1.8}],
   "sfx": [{"srcTime": number, "sfxId": string, "volume": 0-1}],
-  "overlays": [{"srcTime": number, "text": string, "durationSec": number}]
+  "overlays": [{"srcTime": number, "text": string, "durationSec": number}],
+  "broll": [{"assetId": string, "srcStart": number, "srcEnd": number, "segmentIndex": int, "atSrcTime": number, "evidenceFrameTime": number, "purpose": "proof"|"process"|"context"|"reaction"|"explanation", "reason": string, "fit"?: "cover"|"contain"}]
 }`;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -30,11 +32,12 @@ export function describeClip(a: MediaAnalysis): string {
     .sort((x, y) => x - y)
     .join(", ");
   return [
-    `CLIP: ${r1(a.durationSec)}s, ${a.width}x${a.height}, speech: ${a.hasSpeech ? "yes" : "no"}`,
+    `CLIP: ${a.durationSec}s, ${a.width}x${a.height}, speech: ${a.hasSpeech ? "yes" : "no"}`,
     `SCENES (src seconds): ${scenes || "none detected"}`,
     `LOUDEST MOMENTS: ${peaks || "n/a"}`,
     a.hasSpeech ? `TRANSCRIPT (start-end seconds, word): ${words}` : "TRANSCRIPT: none (gameplay/no speech). Use frames, scenes and loudness to find moments.",
-    `FRAMES: ${a.frames.length} images attached in time order at seconds ${a.frames.map((f) => r1(f.t)).join(", ")}`,
+    ...(a.warnings?.length ? [`ANALYSIS LIMITS: ${a.warnings.join(" ")} Do not treat missing words as proof of silence or cut off an audible thought.`] : []),
+    `FRAMES: ${a.frames.length} images attached in time order at exact seconds ${a.frames.map((f) => f.t).join(", ")}. Copy an exact listed timestamp for evidenceFrameTime.`,
   ].join("\n");
 }
 
@@ -65,7 +68,7 @@ const EDITORIAL_RULES = `Editorial priorities:
 - Captions transcribe the supplied speech. Start with readable sentence-case phrases in a safe area; use bold animations and frequent word emphasis only when the brief or footage warrants them. Do not cover the subject or product.
 - Music is optional: return null when silence or original sound works better. If useful, start with a quiet instrumental bed under dialogue (about 0.08-0.16 volume), matched to the mood. Volume is a gain setting, not a loudness guarantee. Beat snapping is optional and defaults off.
 - Effects need a visible or audible reason. Prefer clean cuts; empty transitions, zooms, sfx and overlays arrays are valid. Never meet an effect quota. Keep sound effects sparse and below important speech. Do not add a hook title if the opening already communicates it.
-- Place every cue at an observed source moment that remains in the edit. Use only the supplied footage and library asset IDs. An inspiration video is not an available source asset. External B-roll is not supported by this plan shape; do not invent footage or asset IDs.
+- Place every cue at an observed source moment that remains in the edit. Use only the supplied footage and library asset IDs. An inspiration video is not an editable source asset. B-roll uses only SUPPORTING FOOTAGE listed below: segmentIndex identifies the zero-based PRIMARY segments entry (including which occurrence of repeated footage), atSrcTime anchors it within that segment's source range, and srcStart/srcEnd select the supporting asset at normal speed. Include an attached evidenceFrameTime inside that source range and a specific narrative reason. Keep the shot within that primary segment; avoid overlapping B-roll. Its audio is muted and the main narration continues. fit defaults to cover; contain can preserve a full product or comparison. If no supplied shot helps, return broll: [].
 - In rationale, explain the story choice and the restraint or emphasis that makes it fit this clip. Before replying, check continuity, unbroken speech, truthful captions, justified cues and whether an element should be removed.`;
 
 /** Alternatives explore storytelling choices without imposing an effect package. */
@@ -87,18 +90,23 @@ export type ChatMessage =
   | { role: "user"; content: string | ({ type: "text"; text: string } | ImagePart)[] };
 
 /** Shared prefix (system + clip + library + frames) — identical across variants for prompt caching. */
-export function basePrefix(analysis: MediaAnalysis, library: Library, frameDataUrls: string[]): ChatMessage[] {
+export function basePrefix(analysis: MediaAnalysis, library: Library, frameDataUrls: string[], supporting: { footage: SupportingFootage; urls: string[] }[] = []): ChatMessage[] {
   return [
     {
       role: "system",
       content:
-        "You are Unfold's editing agent. Make a coherent edit that fits the content, not a fixed effects template.\n" + EDITORIAL_RULES + "\nReply with exactly one JSON object matching this shape, nothing else:\n" + AGENT_PLAN_SHAPE,
+        "You are Unfold's editing agent. Make a coherent edit that fits the content, not a fixed effects template.\n" + EDITORIAL_RULES + "\n" + RESEARCH_EDITORIAL_GUIDE + "\nReply with exactly one JSON object matching this shape, nothing else:\n" + AGENT_PLAN_SHAPE,
     },
     {
       role: "user",
       content: [
         { type: "text", text: describeClip(analysis) + "\n\n" + describeLibrary(library) },
         ...frameDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+        ...supporting.flatMap(({ footage, urls }) => [
+          { type: "text" as const, text: `SUPPORTING FOOTAGE assetId=${footage.analysis.videoId}, name=${JSON.stringify(footage.name)}\nCreator description (context, verify against the frames): ${footage.description || "none"}\n${describeClip(footage.analysis)}\nThese following images belong only to this supporting asset. Its transcript is NOT the main narration.` },
+          ...urls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+        ]),
+        { type: "text", text: supporting.length ? "Only the listed supporting assets may be used for B-roll. Describe the observed detail and its relationship to the main narration in reason." : "SUPPORTING FOOTAGE: none. Return broll: []." },
       ],
     },
   ];
@@ -112,6 +120,7 @@ export function planRequest(opts: {
   direction?: string;
   style?: StyleProfile | null;
   aspect?: string;
+  supporting?: { footage: SupportingFootage; urls: string[] }[];
 }): ChatMessage[] {
   const parts = [
     `CREATOR BRIEF: ${opts.brief || "Make a clear, engaging edit that feels natural for this footage."}`,
@@ -120,7 +129,7 @@ export function planRequest(opts: {
     `ASPECT: ${opts.aspect ?? "9:16"}`,
     "Return the AgentPlan JSON now.",
   ].filter(Boolean);
-  return [...basePrefix(opts.analysis, opts.library, opts.frameDataUrls), { role: "user", content: parts.join("\n\n") }];
+  return [...basePrefix(opts.analysis, opts.library, opts.frameDataUrls, opts.supporting), { role: "user", content: parts.join("\n\n") }];
 }
 
 export function remixRequest(opts: {
@@ -128,14 +137,23 @@ export function remixRequest(opts: {
   library: Library;
   frameDataUrls: string[];
   current: AgentPlan;
+  /** Effective preview after server ownership and media validation. */
+  currentEdit?: EditPlan;
   message: string;
+  supporting?: { footage: SupportingFootage; urls: string[] }[];
 }): ChatMessage[] {
   return [
-    ...basePrefix(opts.analysis, opts.library, opts.frameDataUrls),
+    ...basePrefix(opts.analysis, opts.library, opts.frameDataUrls, opts.supporting),
     { role: "assistant", content: JSON.stringify(opts.current) },
     {
       role: "user",
-      content: `Change request: "${opts.message}". Apply it to the plan above, keep everything else that still fits, and return the full updated AgentPlan JSON.`,
+      content: [
+        ...(opts.currentEdit ? [
+          `AUTHORITATIVE CURRENT EDIT (includes the creator's manual changes):\n${JSON.stringify(opts.currentEdit)}`,
+          "This effective EditPlan overrides the older AgentPlan above wherever they differ. Preserve its current caption design/enabled state, source clip order/speeds, supporting selections/trims/fit, removed cutaways, and audio choices unless the change request requires changing them. Do not restore disabled or removed layers from the older plan. EditPlan start/end are output seconds; srcStart/srcEnd and atSrcTime are source seconds. When returning AgentPlan, use source ranges in the current clips' order and keep B-roll segmentIndex tied to the corresponding occurrence in the updated segments. Use only the inspected available supporting assets; captions must still reflect the primary transcript.",
+        ] : []),
+        `Change request: ${JSON.stringify(opts.message)}. Apply it to ${opts.currentEdit ? "the authoritative current edit" : "the plan above"}, keep everything else that still fits, and return the full updated AgentPlan JSON.`,
+      ].join("\n\n"),
     },
   ];
 }

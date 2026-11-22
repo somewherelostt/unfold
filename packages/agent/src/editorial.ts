@@ -1,0 +1,11 @@
+/** Distilled from 50 visual reference breakdowns; no unverified audio-placement claims. */
+export const RESEARCH_EDITORIAL_GUIDE = `Research-derived editing decisions:
+- Choose an editorial shape before choosing a look: demonstration or comparison, personal story, process, conversation, or visual action. The same effect package does not fit them all.
+- A product demonstration should keep the claim and visible evidence together. Show a detail when it answers the current question. A comparison benefits from consistent labels and comparable framing. Do not invent prices, results or endorsements.
+- An organic story should keep its setup, meaningful progress and human payoff. Preserve an awkward reaction, useful wait or candid response when it carries the story. Do not cut away from the payoff merely to increase activity.
+- A process edit should change pictures when the action or information changes. A continuous action, texture demonstration or visual illusion can deserve a longer hold.
+- Captions can be restrained phrases, selective emphasis or disabled when requested and appropriate. Keep the important face, hands, product or comparison visible. Use one consistent emphasis system; do not decorate every word or repeat an opening that is already clear.
+- Every supporting shot must do one job: proof, process, context, reaction or explanation. Select it only from the supplied editable assets, use an actually attached evidence frame, and explain how it relates to the primary narration at that time. A matching mood alone is insufficient. Empty broll is a valid choice.
+- Prefer clean cuts. An expressive transition earns its place by marking a meaningful change in place, time, comparison or a reveal. Effects are optional; do not copy a transition or caption animation that sparse reference frames cannot establish.
+- This study inspected frames and transcript tracks, not full sound. Do not claim a research-backed music or SFX timing pattern. Choose audio from the current brief and available evidence, keeping speech clear.
+- Final review: is the message complete; does every caption reflect actual speech; is each cutaway available and relevant; are its evidence and narration anchor correct; is the payoff visible; can an unnecessary layer be removed? Explain the story choice in rationale.`;
