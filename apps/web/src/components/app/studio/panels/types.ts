@@ -16,4 +16,5 @@ export type PanelProps = {
   seek: (t: number) => void;
   now: () => number;
   onAlternates: () => void;
+  selectedBrollId?: string;
 };

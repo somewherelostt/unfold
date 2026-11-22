@@ -6,13 +6,14 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { sampleAnalysis } from "@unfold/core";
 import { actions, isActive, useStore, type PlanEntry } from "@/lib/client/store";
 import { PromptShell, type PromptSubmit } from "@/components/ui/PromptShell";
-import { abandonPromptDraft, recoverPromptDraft } from "@/lib/client/draft";
+import { abandonPromptDraft, adoptPromptSearch, recoverPromptDraft } from "@/lib/client/draft";
 import { Button } from "@/components/ui/Button";
 import { SectionLabel } from "@/components/ui/Panel";
 import { Shimmer } from "@/components/ui/Shimmer";
 import { VideoCard } from "@/components/ui/VideoCard";
 import { IconArrowRight, IconUpload, IconX } from "@/components/ui/icons";
 import { AppHeader } from "../AppHeader";
+import { SupportingAssets } from "../SupportingAssets";
 
 const BRIEFS = ["Make my gameplay go viral", "Add captions that pop, word by word", "Cut this into a 15s hook-first clip", "Hype reel with whip pans and a big drop"];
 
@@ -24,6 +25,16 @@ export function HomeScreen() {
   const plans = useStore((s) => s.plans);
   const altRoot = useStore((s) => s.altRoot);
   const draftId = params.get("draft");
+  const adopted = useRef<string | null>(null);
+  useEffect(() => {
+    const key = params.toString();
+    if (draftId || !key || adopted.current === key) return;
+    adopted.current = key;
+    if (!adoptPromptSearch(params)) return;
+    const clean = new URLSearchParams(params);
+    for (const field of ["prompt", "style", "aspect"]) clean.delete(field);
+    router.replace(`/app${clean.size ? `?${clean}` : ""}`, { scroll: false });
+  }, [draftId, params, router]);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [settledDraft, setSettledDraft] = useState<string | null>(null);
   const recovering = !!draftId && settledDraft !== draftId;
@@ -95,6 +106,7 @@ export function HomeScreen() {
           {recovering && <p role="status" className="mt-3 text-center text-[12px] text-text-3">Recovering your attached clip…</p>}
           {draftError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[12px] text-danger"><span>{draftError}</span><Button size="sm" variant="ghost" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
           <Inspiration />
+          {project.videoId && <div className="mt-4 rounded-[14px] bg-surface-1 p-3 shadow-[inset_0_0_0_1px_var(--hairline)]"><SupportingAssets primaryVideoId={project.videoId} /></div>}
         </div>
 
         <section className="mt-20">
@@ -107,7 +119,14 @@ export function HomeScreen() {
             {recent.map(([id, e], i) => (
               <RecentCard key={id} id={id} entry={e} i={i} />
             ))}
-            {recent.length === 0 && <SampleTile disabled={running || recovering || !!draftError} onStart={() => { actions.clearUpload(); start({ prompt: "", file: null, style: "Auto", aspect: "9:16" }); }} />}
+            {recent.length === 0 && <SampleTile disabled={running || recovering || !!draftError} onStart={async () => {
+              actions.clearUpload();
+              const response = await fetch("/demo/sample.mp4");
+              if (!response.ok) throw new Error("The sample video is unavailable. Attach your own clip to continue.");
+              const uploaded = await actions.upload(new File([await response.blob()], "sample.mp4", { type: "video/mp4" }));
+              if (!uploaded) throw new Error("Couldn't prepare the sample. Attach your own clip or retry.");
+              start({ prompt: "", file: null, style: "Auto", aspect: "9:16" });
+            }} />}
           </div>
         </section>
       </main>
@@ -120,9 +139,12 @@ function ClipStatus() {
   const p = useStore((s) => s.project);
   if (!p.fileName) return p.analyzeError ? <p role="alert" className="mt-3 text-center text-[12px] text-danger">{p.analyzeError}</p> : null;
   return (
-    <div role="status" className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[12px] text-text-3">
-      <span className="max-w-[220px] truncate text-text-2">{p.fileName}</span>
-      <span className="text-text-4">·</span>
+    <div role="status" className="mt-3 flex items-center gap-3 rounded-[14px] bg-surface-1 p-2.5 text-left text-[12px] text-text-3 shadow-[inset_0_0_0_1px_var(--hairline)]">
+      <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-surface-2">
+        {p.analysis ? <video src={p.analysis.src} poster={p.analysis.frames[0]?.url} muted playsInline preload="metadata" className="h-full w-full object-cover" aria-label="Your attached clip" /> : <IconUpload size={18} />}
+      </div>
+      <div className="min-w-0 flex-1">
+      <p className="truncate font-medium text-text-1" title={p.fileName}>{p.fileName}</p>
       {p.analyzeError ? (
         <span className="flex items-center gap-2 text-danger">
           {p.analyzeError}
@@ -137,7 +159,8 @@ function ClipStatus() {
           {p.analysis.durationSec.toFixed(1)}s · {p.analysis.words.length} words · {p.analysis.scenes.length} scenes
         </span>
       )}
-      <button aria-label="Remove clip" onClick={() => actions.clearUpload()} className="grid size-5 place-items-center rounded-full text-text-3 hover:text-text-1">
+      </div>
+      <button aria-label="Remove clip" onClick={() => actions.clearUpload()} className="grid size-7 shrink-0 place-items-center rounded-full text-text-3 hover:text-text-1">
         <IconX size={12} />
       </button>
     </div>
@@ -219,14 +242,21 @@ function RecentCard({ id, entry, i }: { id: string; entry: PlanEntry; i: number 
   );
 }
 
-function SampleTile({ onStart, disabled }: { onStart: () => void; disabled?: boolean }) {
+function SampleTile({ onStart, disabled }: { onStart: () => Promise<void>; disabled?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function run() {
+    setBusy(true); setError("");
+    try { await onStart(); } catch (e) { setError(e instanceof Error ? e.message : "Couldn't prepare the sample."); }
+    finally { setBusy(false); }
+  }
   return (
-    <button type="button" disabled={disabled} onClick={onStart} className="group relative block text-left disabled:opacity-40">
-      <VideoCard src="/demo/sample.mp4" poster="/demo/frame-12.jpg" title="Try the sample clip" meta="20s" play="hover" />
+    <div><button type="button" disabled={disabled || busy} onClick={() => void run()} className="group relative block text-left disabled:opacity-40">
+      <VideoCard src="/demo/sample.mp4" poster="/demo/frame-12.jpg" title={busy ? "Preparing sample…" : "Try the sample clip"} meta="20s" play="hover" />
       <span className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
         <IconArrowRight size={14} />
       </span>
-    </button>
+    </button>{error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}</div>
   );
 }
 

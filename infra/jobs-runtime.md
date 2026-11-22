@@ -1,0 +1,98 @@
+# Durable media jobs: local and persistent-host foundation
+
+This implements a queue/worker library and additive authenticated `/api/jobs` routes. Existing synchronous/SSE routes remain available. It does not deploy Unfold: no hosted URL, production auth provider or external storage was configured by this slice. Queue/bridge behavioral tests use injected media execution and explicitly are not an end-to-end MP4 export. The real application bindings invoke existing analysis/render/review functions through an isolated child; a coordinated real worker export remains a separate acceptance step.
+
+## Storage and runtime
+
+The queue uses Node >=24's built-in `node:sqlite`, a local disk SQLite database with WAL, `synchronous=FULL`, a busy timeout and `BEGIN IMMEDIATE` transitions. Both API and workers must open the **same absolute database path on the same persistent host**. Independent processes are supported; a network filesystem, separate replicas with separate disks, an ephemeral serverless filesystem and multi-host workers are not supported. Keep the SQLite database, `-wal` and `-shm` files together; use a SQLite-aware backup or stop all writers before copying them. This is job metadata durability, not a backup/replication service. Schema version 1 is created automatically; a newer database version fails closed. No existing media or plan data is migrated.
+
+Node owns durable state. Use the repository's installed `tsx` loader for standalone application bindings, which import existing storage TypeScript containing parameter properties. Bun executes the media workspace in each isolated child. Provision FFmpeg, FFprobe, the local speech executable and model, and a compatible browser before startup. The browser is explicit: `UNFOLD_BROWSER_EXECUTABLE`. For this checkout, reuse the existing binary under `apps/web/node_modules/.remotion/chrome-headless-shell/mac-arm64/chrome-headless-shell-mac-arm64/chrome-headless-shell`; do not download another browser during a job. Linux deployments must configure their own provisioned executable path.
+
+OpenClaw runs Kimi on Cerebras. The readiness check verifies the configured gateway health endpoint and the presence of a gateway credential without exposing it or performing inference. It does not prove gateway authentication or a model completion. Analysis/render jobs do not themselves generate charged completions. `UNFOLD_JOBS_REQUIRE_GATEWAY=false` permits a deliberately media-only worker; the product's planning readiness still requires the gateway. Credentials stay in protected runtime configuration, never job requests, references, events or errors.
+
+`infra/jobs.env.example` and `infra/systemd/unfold-worker.service` are templates. No account, directory, credential, service or deployment is created by them. On a prepared POSIX host, provision Node >=24 and Bun, install the repository's pinned dependencies, provision tools/model/browser, mount persistent storage at `/var/lib/unfold`, create a restricted `unfold` service account, and protect `/etc/unfold/jobs.env`. Adapt absolute executable/repository paths and supply a real binding module before enabling the service. API/web must use the same queue configuration and storage owner. A process supervisor must terminate the worker's entire control group on forced shutdown; the systemd example sets `KillMode=control-group`.
+
+From the repository root:
+
+```sh
+node --test services/jobs/test/*.test.ts
+apps/web/node_modules/.bin/tsc --noEmit -p services/jobs/tsconfig.json
+node --env-file=/absolute/private/jobs.env services/jobs/scripts/health.ts
+node --env-file=/absolute/private/jobs.env services/jobs/scripts/recover.ts
+node --env-file=/absolute/private/jobs.env --import ./packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/worker.ts
+node --import ./packages/video/node_modules/tsx/dist/loader.mjs --test apps/web/src/server/jobs.test.mjs
+```
+
+Readiness checks runtime/tools/model/browser, SQLite integrity, scratch and database disk reserve, configured bindings, optional recent worker heartbeat, expired leases and overdue execution budgets. It returns only boolean checks and safe descriptions. `health.ts --require-worker` requires a recent heartbeat. Storage configuration does not prove the mount is persistent; verify that operationally. Provision tools rather than allowing runtime downloads. The default disk reserve is 1 GiB; space can still run out during a large render, so size the persistent volume and constrain uploads at the storage boundary.
+
+## API integration contract
+
+`apps/web/src/server/jobs.ts` implements the owner-bound API bridge with a shared server-side `JobStore`; `job-bindings.ts` is also loadable by the standalone worker. `@unfold/jobs` belongs only in the Node server runtime, never a client/edge bundle. UI activation is separately gated by `NEXT_PUBLIC_UNFOLD_JOBS=1`; keep it off until a worker and the real export acceptance are ready. The API enqueues work; it does not launch a worker or tie work to the request.
+
+1. Authenticate the request; derive `{ownerId, projectId}` on the server. Call private storage's owner-bound project lookup and validate the referenced upload or immutable plan revision before enqueueing. Never take ownership from a request body. Legacy ownerless files remain outside this namespace.
+2. Register a private-storage job reference **before** enqueueing, including the immutable input revision. Coordinate that registration and enqueue failure cleanup with the storage owner. Keep references until the durable job is terminal and owned execution has stopped. `MediaJobBindings.withProjectLease` repeats the ownership check and holds the storage lease during resolution, execution and publish; it must not remove a queued job's reference just because a viewer disconnects.
+3. `POST /api/jobs` accepts the application request below, rejects owner/project/retry/extra settings, and derives project context from its authenticated upload/plan. It canonicalizes and validates the exact clicked preview through `prepareExportPlan`, then writes an immutable private snapshot. Internal queue inputs refer only to that snapshot ID/revision or owned upload ID. The application server chooses one attempt with no automatic retry. HTTP 202 is `{job,created}`, including an existing idempotent job. Foreign owner/project lookups are the same 404 as unknown jobs.
+4. `GET .../jobs/:id` returns `{job}`. `POST .../jobs/:id/cancel` returns `{job}` and means explicit cancellation. Running cancellation is `running` with `cancelRequestedAt` and progress stage `cancelling` until execution stops, then `cancelled`. Request abort and SSE disconnect never cancel the job.
+5. SSE `GET .../jobs/:id/events` uses `watchJob(store,ctx,id,{after,signal})` and `encodeJobEvent`. The generator first sends the current snapshot, then durable later revisions until terminal. `Last-Event-ID`/`after` is a nonnegative integer; the current snapshot supersedes missed intermediate progress. `store.events(ctx,id,after,limit)` also supports ordered historical polling. Send periodic SSE comment keepalives in the HTTP layer; set no-store and a suitable streaming timeout. The status endpoint is always the recovery fallback. Do not wrap enqueue and execution in the SSE callback.
+6. `GET /api/jobs/:id/result` returns the existing analysis payload or export-ready payload only after success, otherwise 409. Queue output is an opaque owner-bound result manifest reference, resolved through private storage. Ready data contains `url`, optional `review`, `reviewUrl`, `contactSheetUrl` or explicit `reviewError`, plus `submittedInputFingerprint`, `renderedPlanFingerprint`, and `settings:{resolution,burnCaptions}`. The submitted fingerprint attests the preview before canonicalization/settings; the rendered fingerprint covers the trusted canonical plan before transient capability decoration. A review failure preserves the completed MP4. Never persist caller paths or transient capability URLs in the immutable snapshot or queue.
+
+Client request:
+
+```json
+{"kind":"render","planId":"plan_123","resolution":"720p","burnCaptions":true,"idempotencyKey":"export-click-7e8949ef"}
+```
+
+Render requests may include `editPlan` for the current preview. Analysis uses `{"kind":"analysis","videoId":"upload_123","idempotencyKey":"analyze-click-7e8949ef"}`. Upload IDs are immutable in private storage. Keep the idempotency key for reconnects and double clicks; create a new key for an intentional repeat. Its scope is owner + project. Reusing it with changed input/settings is 409. Keys remain durable with job metadata; terminal history currently has no automatic deletion, so idempotency does not silently expire.
+
+Progress event (the numeric ID and `revision` are the same monotonically increasing durable event sequence; gaps between one job's events are normal):
+
+```text
+id: 12
+event: job
+data: {"id":"8d3a2e32-53bb-4d32-a819-f808f63425de","kind":"render","state":"running","input":{"kind":"plan","id":"plan_123","revision":"sha256_immutable_revision"},"output":null,"progress":{"fraction":0.42,"stage":"rendering"},"attempt":1,"maxAttempts":1,"createdAt":1795320000000,"updatedAt":1795320004000,"startedAt":1795320001000,"finishedAt":null,"availableAt":1795320000000,"cancelRequestedAt":null,"error":null,"revision":12}
+```
+
+Completion has `state:"succeeded"`, `progress:{fraction:1,stage:"complete"}`, `finishedAt` and `output:{kind:"video",id:"export_manifest_123",revision:"..."}`. Failed jobs have a safe `{code,message,transient}` error. Client views contain no owner IDs, claim tokens, runtime process IDs or credentials. Owner identity is never inferred from possession of a job ID.
+
+## Owner-bound media bindings and real harness
+
+The real application binding `apps/web/src/server/job-bindings.ts` exports `createHandlers(config)` and `authorizeInput(context,input)` and uses the existing `PrivateStorage`. Set `UNFOLD_JOB_BINDINGS` to its absolute path. Set `UNFOLD_INTERNAL_ORIGIN` to the trusted web origin reachable by the browser worker; it is never taken from request headers. Analysis stages existing owned results into private attempt scratch and delegates fingerprint/model/language/frame cache validation to `analyzeVideo`, rather than trusting an analyzed status flag. Publication stages/syncs files and only then changes the owner manifest's analyzed marker. Rendering rechecks the immutable snapshot hash, issues exact-file media capabilities, renders with the existing explicit browser and two internal workers, reviews within the same isolated process group (120-second signal inspection and at most 18 sampled frames), then publishes/syncs owned MP4/report/artifacts and a result manifest. Capability-bearing scratch input is removed in `finally`; grants are revoked and expire independently.
+
+The generic library `createMediaJobHandlers(bindings,runtime)` remains available for custom integrations around the **existing** analysis/render signatures. It does not invent a second media store. Its injection points are:
+
+- `resolveUpload(ctx,reference) -> {inputPath,videoId}` and `resolvePlan(ctx,reference) -> {plan,revision}`, each using private storage's owner-bound reference lookup. The adapter verifies the resolved plan revision matches the enqueued immutable revision. An uploaded source's immutability/version check belongs in its resolver.
+- `withProjectLease(ctx,execute)`: check owner/project, retain the queued job reference, acquire/renew the project storage lease, run the callback, then release the execution lease in `finally`. Unregister the durable job reference only after terminal state is safely observed by integration. The queue cannot make an independent storage registry transaction atomic; integration must reconcile a crash between registration/enqueue/terminal cleanup.
+- `publishAnalysis(ctx,{analysis,dir,sourcePath,timings})` and `publishRender(ctx,{path})`: atomically publish under the owner/project storage lease, check cancellation/deletion state, and return `{output,retainWorkspace?}`. Rebase analysis URLs when publishing. If moving/copying into private storage, return `retainWorkspace:false`; if its output manifest intentionally references the job workspace, return `true` and release it only after that reference is removed. Publishing must be idempotent per job/attempt, since a crash can occur after storage publication but before queue completion.
+- Runtime paths are trusted host configuration, never job payloads. `assetBaseFor(ctx)` mints a short-lived, file/project-scoped capability for that render attempt because the browser child has no signed-in cookies. The capability must expire promptly; it is kept only in a private attempt file while the child runs and removed in `finally`. A hard crash can leave this scratch file until reconciliation/retention, so expiry is mandatory. Never include raw API keys in it. Renderer browser support is an explicit `browserExecutable` option on the owned renderer module.
+
+Custom binding modules must export `createHandlers(config): Promise<Partial<Record<JobKind,JobHandler>>>` and, for the operator harness, `authorizeInput(context,input): Promise<void>`. Resolve/publish callbacks are storage-only; all tools including rendered review stay inside the isolated task or require a supervisor-specific recovery proof. Do not launch an untracked review process from `publishRender`. There is no fallback which accepts an arbitrary path or acts as a different owner.
+
+For the internal operator harness, first enqueue a real owned preview through the API to obtain its immutable `job.input.id/revision`. Use that snapshot reference in an operator-only JSON file (the harness accepts the internal reference contract, not the public client body), then run:
+
+```json
+{"ownerId":"real_authenticated_owner","projectId":"real_private_project","request":{"kind":"render","input":{"kind":"plan","id":"real_plan","revision":"real_immutable_revision"},"idempotencyKey":"integration-render-unique-01"}}
+```
+
+```sh
+node --env-file=/absolute/private/jobs.env --import ./packages/video/node_modules/tsx/dist/loader.mjs services/jobs/scripts/integration.ts /absolute/private/operator-request.json
+```
+
+Use a separate integration queue database/volume to avoid claiming unrelated queued production work. The harness authorizes the input through the real binding, enqueues it, runs the real handler and prints durable snapshots and the final output reference. Inspect the resulting MP4 and rendered review separately. Until this is connected and run, the behavioral tests establish queue behavior only.
+
+## Leases, limits, cancellation and recovery
+
+Defaults are 32 queued jobs; 4 outstanding per owner across projects; 2 running globally; 1 running per owner/project; 1 render job and 1 analysis job concurrently. Rendering's internal worker count is independently 2 in the adapter (validated in 1–8). Each job has a 20-minute total execution budget, including earlier attempts, a 30-second claim lease and periodic heartbeats. The environment example exposes these limits. Upload size/duration/storage quotas remain private storage's responsibility. A handler which ignores cancellation keeps capacity occupied until it actually stops; the system fails closed instead of falsely announcing cancellation.
+
+`BEGIN IMMEDIATE` makes queue checks, idempotency, claim and transition atomic across local processes. Each attempt has a new unguessable lease token; stale progress/completion cannot overwrite the next attempt. A lease is not proof that a process died. Expired running jobs **continue to occupy capacity** and are not automatically stolen. Readiness reports them. Unknown exceptions are permanent safe failures with no raw tool log/key/path in client state. Only explicit `HandlerFailure(...,true)` plus server-chosen `safeToRetry:true` enables retry, at most three total attempts with bounded exponential delay. Validation/permanent failures never retry. Charged generation and irreversible actions must keep `safeToRetry:false`.
+
+The isolated runner uses a POSIX process group, sends SIGTERM then SIGKILL after a grace period, and waits until the group is gone before settling. Attempt `process.json` and `worker.json` record host/process/lease identity and completion. A stopped media child does not authorize recovery while the old parent is still resolving/publishing; the verifier requires the whole handler's completion marker or the old parent and recorded group both gone. Normal supervisor shutdown aborts handlers and waits; forced systemd shutdown kills the whole control group. The recovery command reconciles only expired attempts with matching local records which prove stopped work. The supplied long-running worker repeats that conservative check, including leases that expire after the replacement worker starts. It never kills an unknown/reused process. If records are missing, the host changed, or an old group/parent is still alive, it leaves the job blocked for operator verification. After a confirmed stop, cancellation wins; otherwise safe transient work can retry within policy and unsafe work fails as `WORKER_INTERRUPTED`. For a custom injected handler, provide a supervisor-specific `verifyStopped` to `store.recoverExpired` only after proving all its work stopped. Never use an unconditional `true` verifier in a live service.
+
+## Retention and deletion
+
+Only paths generated by `store.workspace(claim)` are registered for cleanup: `<artifactRoot>/<server job ID>/attempt-N`. Resources default to 24-hour expiry. Cleanup preserves all pending/running jobs, referenced output workspaces, user source media, private storage output and other project paths. It refuses symlinked workspaces/parents. Terminal metadata/events and idempotency records are currently retained; there is no silent deletion of history. Operate within the queue volume's capacity and add an explicit audited metadata archival/tombstone policy before large-scale deployment.
+
+For project/account deletion, authenticated integration must first block new enqueues under the private storage deletion lock, explicitly cancel referenced jobs (`cancel(ctx,id)` or trusted account-wide `cancelOwner(ownerId)`), wait for terminal status/`ownerHasLiveWork(ownerId) === false`, remove external output references, then call `releaseOutput` for owned terminal jobs and remove private storage data through its owner. Scratch cleanup cannot delete source files. Cancellation alone does not authorize account deletion or prove a render stopped. Keep job refs/leases while waiting; reconcile them after crashes.
+
+## Verified scope and remaining work
+
+Tests exercise durable reopen/worker restart, independent-process claim exclusion, owner+project access and quotas, durable idempotency, independent render concurrency, cancellation, bounded safe transient retries, lease expiry/fencing, reconnect, safe failures and retention. Bridge tests invoke the actual route functions with only authentication/media-execution boundaries injected, using real private storage and SQLite: they cover snapshot immutability, canonical/submitted attestation, scoped/revoked media capabilities, output/review publication, failed-review MP4 preservation, source cache delegation, conflict reference cleanup and project drain. Fixture bytes are never presented as a real media export. Before deployment, configure and supervise a real worker, execute one coordinated bounded render and inspect its actual MP4/review, run host restart/disk-exhaustion drills, configure backups/logging/monitoring and verify service/tool compatibility on the target host. No production deployment was performed.

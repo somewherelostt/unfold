@@ -1,4 +1,5 @@
 import type { AgentPlan, Aspect, CaptionDesign, CaptionPreset, EditPlan, StylePreset, StyleProfile, TransitionType } from "@unfold/core";
+import type { RenderedQualityReview } from "@unfold/video";
 
 /** Per-call agent stats from the API (packages/agent StreamStats). Speed shown = genMs + tps. */
 export type ApiStats = {
@@ -27,6 +28,26 @@ export type GenerateRequest = {
   styleId?: string; // from POST /api/reference
   aspect?: Aspect;
   count: number;
+  supportingAssetIds?: string[];
+};
+
+export type SupportingAsset = NonNullable<EditPlan["supporting"]>[number];
+export type BrollShot = NonNullable<EditPlan["broll"]>[number];
+export type SupportingUpload = {
+  id: string;
+  name: string;
+  description: string;
+  status: "uploading" | "analyzing" | "ready" | "error" | "cancelled";
+  progress: number;
+  asset?: SupportingAsset;
+  videoId?: string;
+  error?: string;
+  selected?: boolean;
+};
+
+export type SupportingResource = {
+  assetId: string; videoId: string; projectId: string; primaryVideoId: string | null;
+  role: "primary" | "supporting"; description: string; filename: string; status: string; createdAt: number | string;
 };
 
 /** SSE events from POST /api/variants. */
@@ -44,7 +65,11 @@ export type RemixEvent =
   | { type: "error"; message: string };
 
 /** SSE events from POST /api/export. */
-export type ExportEvent = { type: "progress"; progress: number } | { type: "ready"; url: string } | { type: "error"; message: string };
+export type ExportSettings = { resolution: "720p" | "1080p"; burnCaptions: boolean };
+export type ExportReady = { url: string; review?: RenderedQualityReview; reviewUrl?: string; contactSheetUrl?: string; reviewError?: string; submittedInputFingerprint?: string; renderedPlanFingerprint?: string; settings?: ExportSettings };
+export type ExportReview = ExportReady & { submittedFingerprint: string; requestedSettings?: ExportSettings };
+export type ExportJob = { jobId: string; cursor: number; submittedFingerprint: string; requestedSettings: ExportSettings };
+export type ExportEvent = { type: "progress"; progress: number } | ({ type: "ready" } & ExportReady) | { type: "error"; message: string };
 
 export type ReferenceResult = {
   styleId: string;
@@ -56,6 +81,9 @@ export type ReferenceResult = {
 
 /** Manual, client-side edits layered on top of the agent's plan (editor panels). */
 export type Overrides = {
+  supporting?: SupportingAsset[];
+  broll?: BrollShot[];
+  brollDisabled?: string[];
   captions?: boolean;
   captionPreset?: CaptionPreset;
   captionDesign?: CaptionDesign;

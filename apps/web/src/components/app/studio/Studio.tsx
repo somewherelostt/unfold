@@ -31,12 +31,14 @@ import {
   IconTransition,
   IconUndo,
   IconX,
+  IconCheck,
 } from "@/components/ui/icons";
 import { PlanPlayer, type PlayerRef } from "../preview/PlanPlayer";
 import { cx } from "../ui";
 import { AlternatesDrawer } from "./AlternatesDrawer";
 import { Chat } from "./Chat";
 import { ExportButton } from "./ExportButton";
+import { SaveButton } from "./SaveButton";
 import { Timeline } from "./Timeline";
 import { CaptionsPanel } from "./panels/CaptionsPanel";
 import { MediaPanel } from "./panels/MediaPanel";
@@ -44,6 +46,7 @@ import { MusicPanel } from "./panels/MusicPanel";
 import { SfxPanel } from "./panels/SfxPanel";
 import { StylePanel } from "./panels/StylePanel";
 import { TransitionsPanel } from "./panels/TransitionsPanel";
+import { ReviewPanel } from "./panels/ReviewPanel";
 import type { PanelProps } from "./panels/types";
 
 const SECTIONS = [
@@ -53,6 +56,7 @@ const SECTIONS = [
   { key: "transitions", label: "Transitions", icon: IconTransition, panel: TransitionsPanel },
   { key: "style", label: "Style", icon: IconStyle, panel: StylePanel },
   { key: "media", label: "Media", icon: IconMedia, panel: MediaPanel },
+  { key: "review", label: "Review", icon: IconCheck, panel: ReviewPanel },
 ] as const;
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
@@ -60,7 +64,7 @@ type SectionKey = (typeof SECTIONS)[number]["key"];
 const RAIL = 56;
 const GAP = 8;
 const PANEL_W = 320;
-const TL_H = 220;
+const TL_H = 264;
 const DRAWER_H = 196;
 
 /* ------------------------------------------------------------------ editing */
@@ -68,11 +72,12 @@ const DRAWER_H = 196;
 export function EditStudio({ id }: { id: string }) {
   const { entry, plan } = usePlan(id);
   const planError = useStore((s) => s.planErrors[id]);
+  const access = useStore((s) => s.planAccess[id]);
   useEffect(() => {
     void actions.ensurePlan(id);
     void actions.loadLibrary();
   }, [id]);
-  if (!entry || !plan) {
+  if (planError || access === "checking" || !entry || !plan) {
     return (
       <Centered>
         {planError ? (
@@ -147,6 +152,8 @@ function Generating() {
 function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; entry?: PlanEntry; plan?: EditPlan; generating?: boolean; run?: Run; reveal?: number }) {
   const playerRef = useRef<PlayerRef>(null);
   const library = useStore((s) => s.library);
+  const projectAspect = useStore((s) => s.project.aspect);
+  const previewRatio = plan ? plan.width / plan.height : ({ "9:16": 9 / 16, "1:1": 1, "16:9": 16 / 9 }[projectAspect]);
   const frames =
     useStore((s) => {
       const vid = plan?.source.videoId ?? s.project.analysis?.videoId;
@@ -154,6 +161,7 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
     }) ?? sampleAnalysis.frames;
   const hasAlts = useStore((s) => (id ? !!s.alts[s.altRoot[id] ?? id] : false));
   const [section, setSection] = useState<SectionKey | null>(null);
+  const [selectedBrollId, selectBroll] = useState<string>();
   const [altChoice, setAltOpen] = useState<boolean | null>(null);
   const altOpen = !generating && (altChoice ?? hasAlts);
   const panelOpen = !generating && !!section;
@@ -204,6 +212,7 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
           seek: (t) => playerRef.current?.seekTo(Math.round(t * plan.fps)),
           now: () => (playerRef.current?.getCurrentFrame() ?? 0) / plan.fps,
           onAlternates: openAlternates,
+          selectedBrollId,
         }
       : null;
   const active = SECTIONS.find((s) => s.key === section);
@@ -211,12 +220,12 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
   return (
     <div
       className="relative flex min-h-dvh flex-col bg-bg xl:h-dvh xl:overflow-hidden"
-      style={{ ["--stage-l" as string]: `${stageLeft}px`, ["--stage-b" as string]: `${stageBottom}px` }}
+      style={{ ["--stage-l" as string]: `${stageLeft}px`, ["--stage-b" as string]: `${stageBottom}px`, ["--preview-height" as string]: previewRatio >= 1 ? `calc((100vw - 32px) / ${previewRatio} + 100px)` : "68dvh" }}
     >
       <TopBar id={id} entry={entry} plan={plan} generating={generating} run={run} altOpen={altOpen} onAlternates={() => (altOpen ? setAltOpen(false) : openAlternates())} />
 
       {/* Rail */}
-      <nav aria-label="Editing tools" className="chrome z-20 flex shrink-0 items-center gap-1 overflow-x-auto px-2 py-1 shadow-[inset_0_-1px_0_var(--hairline)] xl:absolute xl:bottom-0 xl:left-0 xl:top-12 xl:w-14 xl:flex-col xl:px-0 xl:pt-2 xl:shadow-none">
+      <nav aria-label="Editing tools" className="chrome z-20 flex shrink-0 items-center gap-0.5 overflow-x-auto px-2 py-1 shadow-[inset_0_-1px_0_var(--hairline)] sm:gap-1 xl:absolute xl:bottom-0 xl:left-0 xl:top-12 xl:w-14 xl:flex-col xl:px-0 xl:pt-2 xl:shadow-none">
         {SECTIONS.map((s) => {
           const Icon = s.icon;
           const on = section === s.key && panelOpen;
@@ -229,7 +238,7 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
               aria-controls={on ? "studio-panel" : undefined}
               onClick={() => setSection(on ? null : s.key)}
               className={cx(
-                "flex w-12 shrink-0 flex-col items-center gap-1 rounded-[10px] py-2 text-[10px] leading-3 transition-colors disabled:opacity-35",
+                "flex w-11 shrink-0 flex-col items-center gap-1 rounded-[10px] py-2 text-[10px] leading-3 transition-colors disabled:opacity-35 sm:w-12",
                 on ? "bg-surface-2 text-text-1 shadow-[inset_0_0_0_1px_var(--hairline-strong)]" : "text-text-3 hover:bg-surface-1 hover:text-text-1",
               )}
             >
@@ -264,8 +273,8 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
       )}
 
       {/* Stage */}
-      <section aria-label="Edit preview" className="relative z-10 flex h-[min(68dvh,620px)] min-h-[320px] flex-col items-center justify-center px-4 pb-16 pt-4 transition-[left,bottom] duration-[var(--dur-panel)] ease-[var(--ease)] xl:absolute xl:right-[376px] xl:top-12 xl:h-auto xl:min-h-0 xl:pb-[68px] xl:pt-5 xl:[bottom:var(--stage-b)] xl:[left:var(--stage-l)]">
-        <Stage plan={plan} frames={frames} playerRef={playerRef} showPlayer={showPlayer} generating={generating} run={run} />
+      <section aria-label="Edit preview" className="relative z-10 flex h-[min(var(--preview-height),620px)] min-h-[320px] flex-col items-center justify-center px-4 pb-16 pt-4 transition-[left,bottom] duration-[var(--dur-panel)] ease-[var(--ease)] xl:absolute xl:right-[376px] xl:top-12 xl:h-auto xl:min-h-0 xl:pb-[68px] xl:pt-5 xl:[bottom:var(--stage-b)] xl:[left:var(--stage-l)]">
+        <Stage plan={plan} ratio={previewRatio} frames={frames} playerRef={playerRef} showPlayer={showPlayer} generating={generating} run={run} />
         {plan && showPlayer && <PillToolbar id={id} plan={plan} playerRef={playerRef} editable={ready} />}
       </section>
 
@@ -275,14 +284,14 @@ function Shell({ id, entry, plan, generating, run, reveal = 5 }: { id?: string; 
           id={id}
           frames={frames}
           onClose={() => setAltOpen(false)}
-          className="z-20 m-2 h-[196px] shrink-0 xl:absolute xl:bottom-[236px] xl:left-16 xl:right-[376px] xl:m-0"
+          className="z-20 m-2 h-[196px] shrink-0 xl:absolute xl:bottom-[280px] xl:left-16 xl:right-[376px] xl:m-0"
         />
       )}
 
       {/* Timeline */}
-      <Panel aria-label="Edit timeline" className="z-20 m-2 h-[220px] shrink-0 overflow-x-auto overflow-y-hidden xl:absolute xl:bottom-2 xl:left-16 xl:right-[376px] xl:m-0">
+      <Panel aria-label="Edit timeline" className="z-20 m-2 h-[264px] shrink-0 overflow-x-auto overflow-y-hidden xl:absolute xl:bottom-2 xl:left-16 xl:right-[376px] xl:m-0">
         <div className="h-full min-w-[720px]">
-          <Timeline plan={plan} frames={frames} reveal={generating ? Math.min(4, reveal) : 4} playerRef={showPlayer ? playerRef : undefined} />
+          <Timeline plan={plan} frames={frames} reveal={generating ? Math.min(4, reveal) : 4} playerRef={showPlayer ? playerRef : undefined} onSelectBroll={(shotId) => { selectBroll(shotId); setSection("media"); }} />
         </div>
       </Panel>
 
@@ -302,6 +311,7 @@ function Centered({ children }: { children: ReactNode }) {
 
 function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { id?: string; entry?: PlanEntry; plan?: EditPlan; generating?: boolean; run?: Run; altOpen: boolean; onAlternates: () => void }) {
   const fileName = useStore((s) => s.project.fileName);
+  const projectAspect = useStore((s) => s.project.aspect);
   const ready = !generating && !!id && !!entry;
   const name = entry?.name ?? (fileName ? fileName.replace(/\.[^.]+$/, "") : "Untitled edit");
   return (
@@ -328,7 +338,7 @@ function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { i
           className="w-40"
           trigger={({ toggle }) => (
             <button type="button" disabled={!ready} onClick={toggle} className="tabular flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 font-mono text-[12px] text-text-1 shadow-[inset_0_0_0_1px_var(--hairline)] disabled:opacity-40">
-              {plan?.aspect ?? "9:16"}
+              {plan?.aspect ?? projectAspect}
               <IconChevronDown size={12} className="text-text-3" />
             </button>
           )}
@@ -355,6 +365,7 @@ function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { i
       </div>
 
       <div className="flex items-center justify-end gap-1.5">
+        {ready && id && entry && plan && <SaveButton id={id} entry={entry} plan={plan} />}
         {generating && run && isActive(run) && (
           <Button variant="ghost" size="sm" className="h-8" onClick={() => actions.cancel("main")}>
             Cancel
@@ -371,18 +382,17 @@ function TopBar({ id, entry, plan, generating, run, altOpen, onAlternates }: { i
             <SpeedBadge seconds={entry.stats.genMs / 1000} tps={entry.stats.tps} model={false} />
           </span>
         )}
-        <ExportButton serverId={ready ? entry?.serverId : undefined} plan={plan} disabled={!ready} />
+        <ExportButton key={id ?? "generating"} id={id} serverId={ready ? entry?.serverId : undefined} plan={plan} disabled={!ready} />
       </div>
     </header>
   );
 }
 
-function Stage({ plan, frames, playerRef, showPlayer, generating, run }: { plan?: EditPlan; frames: { t: number; url: string }[]; playerRef: React.RefObject<PlayerRef | null>; showPlayer: boolean; generating?: boolean; run?: Run }) {
-  const aspect = plan ? `${plan.width} / ${plan.height}` : "9 / 16";
+function Stage({ plan, ratio, frames, playerRef, showPlayer, generating, run }: { plan?: EditPlan; ratio: number; frames: { t: number; url: string }[]; playerRef: React.RefObject<PlayerRef | null>; showPlayer: boolean; generating?: boolean; run?: Run }) {
   const failed = generating && run && (run.status === "error" || run.status === "cancelled") && !plan;
   return (
-    <div className="relative flex h-full w-full items-center justify-center">
-      <div className="relative overflow-hidden rounded-[14px] bg-black shadow-[0_0_0_1px_var(--hairline),0_24px_64px_-16px_rgb(0_0_0/.7)]" style={{ aspectRatio: aspect, height: "100%", maxWidth: "100%" }}>
+    <div className="relative flex h-full w-full items-center justify-center" style={{ containerType: "size" }}>
+      <div className="relative overflow-hidden rounded-[14px] bg-black shadow-[0_0_0_1px_var(--hairline),0_24px_64px_-16px_rgb(0_0_0/.7)]" style={{ width: `min(100cqw, calc(100cqh * ${ratio}))`, height: `min(100cqh, calc(100cqw / ${ratio}))` }}>
         {showPlayer && plan ? (
           <>
             <PlanPlayer ref={playerRef} plan={plan} muted={generating} autoPlay={generating} />

@@ -1,27 +1,44 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, statfs, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/auth/server";
-import { UPLOAD_DIR } from "@/server/store";
-
+import { storage } from "@/server/store";
+import { apiError } from "@/server/api-errors";
+import { StorageError, type PrivateAsset } from "@/server/private-storage";
 
 const MAX_BYTES = 500 * 1024 * 1024;
 const VIDEO_EXT = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 
-/** POST multipart {file} → { videoId }. Analysis runs separately via POST /api/analyze. */
+/** Multipart {file, primaryVideoId?, role?: 'supporting', description?}. */
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
-
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) return Response.json({ error: "file is required" }, { status: 400 });
-  if (file.size > MAX_BYTES) return Response.json({ error: "Max upload is 500 MB" }, { status: 413 });
-  const ext = path.extname(file.name || "").toLowerCase() || ".mp4";
-  if (!VIDEO_EXT.has(ext)) return Response.json({ error: "Upload a video file (mp4, mov, webm, mkv)" }, { status: 415 });
-
-  const videoId = `v_${Date.now().toString(36)}_${randomBytes(3).toString("hex")}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(path.join(UPLOAD_DIR, `${videoId}${ext}`), Buffer.from(await file.arrayBuffer()));
-  return Response.json({ videoId });
+  try {
+    const form = await req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File) || !file.size) throw new StorageError(400, "A video file is required.");
+    if (file.size > MAX_BYTES) throw new StorageError(413, "Max upload is 500 MB.");
+    const extension = path.extname(file.name).toLowerCase();
+    if (!VIDEO_EXT.has(extension)) throw new StorageError(415, "Upload a video file (mp4, mov, webm, mkv).");
+    const supporting = form.get("role") === "supporting";
+    if (form.get("role") && !supporting && form.get("role") !== "primary") throw new StorageError(400, "Invalid upload role.");
+    const videoId = `v_${randomUUID().replaceAll("-", "")}`;
+    const projectId = supporting ? String(form.get("primaryVideoId") ?? "") : videoId;
+    const description = String(form.get("description") ?? "").trim();
+    if (description.length > 500) throw new StorageError(400, "Descriptions can contain up to 500 characters.");
+    if (supporting) await storage.getProject(user, projectId);
+    else await storage.createProject(user, projectId, file.name);
+    const release = await storage.acquireLease(user, projectId, "upload");
+    try {
+      const asset: PrivateAsset = { assetId: videoId, videoId, projectId, primaryVideoId: projectId, role: supporting ? "supporting" : "primary", description, filename: file.name.slice(0, 160), extension, status: "uploaded", createdAt: Date.now() };
+      await storage.addAsset(user, projectId, asset);
+      const { upload } = await storage.assetPaths(user, videoId);
+      await mkdir(path.dirname(upload), { recursive: true, mode: 0o700 });
+      const disk = await statfs(path.dirname(upload));
+      if (disk.bavail * disk.bsize < file.size * 3 + 128 * 1024 * 1024) throw new StorageError(507, "Not enough storage for this video and its preview.");
+      req.signal.throwIfAborted();
+      await writeFile(upload, Buffer.from(await file.arrayBuffer()), { flag: "wx", mode: 0o600 });
+      return Response.json({ videoId, assetId: videoId, projectId, primaryVideoId: projectId, status: "uploaded", asset });
+    } finally { await release(); }
+  } catch (error) { return apiError(error); }
 }

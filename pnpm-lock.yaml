@@ -183,6 +183,9 @@ importers:
       '@unfold/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@unfold/jobs':
+        specifier: workspace:*
+        version: link:../../services/jobs
       '@unfold/media':
         specifier: workspace:*
         version: link:../../services/media
@@ -291,6 +294,15 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  services/jobs:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
   services/media: {}
 

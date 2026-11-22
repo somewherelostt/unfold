@@ -1,47 +1,56 @@
 import { generateVariants } from "@unfold/agent";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth/server";
-import { getAnalysis, getLibrary, loadFrame, store } from "@/server/store";
+import { createExecution } from "@/lib/auth/execution";
+import { getAnalysis, getLibrary, frameLoader, resolveSupporting, storage, store, type GenerationRequest } from "@/server/store";
+import { StorageError } from "@/server/private-storage";
+import { apiError } from "@/server/api-errors";
 import { sse } from "@/server/sse";
 
 export const maxDuration = 300;
+const Input = z.object({ videoId: z.string(), prompt: z.string().max(8000).default(""), styleId: z.string().optional(), aspect: z.enum(["9:16", "1:1", "16:9"]).optional(), count: z.number().int().min(1).max(9).default(1), supportingAssetIds: z.array(z.string()).max(4).default([]) });
 
-/**
- * POST {videoId, prompt, styleId?, aspect?, count?} → SSE
- *   event "start"   {count, startedAt}
- *   event "variant" {index, direction, editPlan, agentPlan, stats}   (as each lands)
- *   event "variant-error" {index, message}
- *   event "summary" {count, ok, wallMs, outputTokens, avgTps}
- *   event "done"
- */
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
-
-  const body = (await req.json().catch(() => ({}))) as { videoId?: string; prompt?: string; styleId?: string; aspect?: string; count?: number };
-  if (!body.videoId) return Response.json({ error: "videoId is required" }, { status: 400 });
-  const analysis = await getAnalysis(body.videoId);
-  if (!analysis) return Response.json({ error: "Analyse the video first" }, { status: 409 });
-  const library = await getLibrary();
-  const style = body.styleId ? (await store.getStyle(body.styleId))?.profile ?? null : null;
-  const count = Math.max(1, Math.min(9, body.count ?? 9));
-
-  return sse(async (send, signal) => {
-    const t0 = Date.now();
-    send("start", { count, startedAt: t0 });
-    let ok = 0;
-    let tokens = 0;
-    let tpsSum = 0;
-    for await (const v of generateVariants({ analysis, library, loadFrame }, body.prompt ?? "", { count, style, aspect: body.aspect, signal })) {
-      if (v.result) {
-        ok++;
-        tokens += v.result.stats.outputTokens;
-        tpsSum += v.result.stats.tps;
-        await store.putPlan({ editPlan: v.result.editPlan, agentPlan: v.result.agentPlan, videoId: analysis.videoId, createdAt: Date.now() });
-        send("variant", { index: v.index, direction: v.direction, editPlan: v.result.editPlan, agentPlan: v.result.agentPlan, stats: v.result.stats });
-      } else {
-        send("variant-error", { index: v.index, message: v.error });
-      }
-    }
-    send("summary", { count, ok, wallMs: Date.now() - t0, outputTokens: tokens, avgTps: ok ? Math.round(tpsSum / ok) : 0 });
-  }, req.signal);
+  try {
+    const body = Input.safeParse(await req.json().catch(() => null));
+    if (!body.success) throw new StorageError(400, "Invalid generation request.");
+    const input = body.data;
+    const primary = await storage.getAsset(user, input.videoId);
+    if (primary.role !== "primary") throw new StorageError(404, "Not found.");
+    const analysis = await getAnalysis(user, input.videoId);
+    if (!analysis) throw new StorageError(409, "Analyze the video first.");
+    const supporting = await resolveSupporting(user, primary.projectId, input.supportingAssetIds);
+    const style = input.styleId ? await store.getStyle(user, input.styleId) : null;
+    if (style && style.projectId !== primary.projectId) throw new StorageError(404, "Not found.");
+    const library = await getLibrary();
+    const startedAt = Date.now();
+    const release = await storage.acquireLease(user, primary.projectId, "generation");
+    let execution;
+    try { execution = await createExecution(user, req.signal); }
+    catch (error) { await release(); throw error; }
+    const count = user.dev ? Math.min(3, input.count) : input.count;
+    return sse(async (send, signal) => {
+      try {
+        send("start", { count, startedAt, executionMode: execution.mode, startupMs: Date.now() - startedAt });
+        let ok = 0; let tokens = 0; let tpsSum = 0;
+        for await (const variant of generateVariants({ analysis, library, loadFrame: frameLoader(user, primary.projectId), supporting, config: execution.config }, input.prompt, { count, style: style?.profile, aspect: input.aspect, signal })) {
+          if (variant.result) {
+            ok++; tokens += variant.result.stats.outputTokens; tpsSum += variant.result.stats.tps;
+            const generationRequest: GenerationRequest = {
+              version: 1, receivedBrief: input.prompt,
+              ...(input.aspect === undefined ? {} : { requestedAspect: input.aspect }),
+              supportingAssetIds: [...input.supportingAssetIds],
+              ...(input.styleId === undefined ? {} : { styleId: input.styleId }),
+              direction: variant.direction, createdAt: startedAt,
+            };
+            const stored = await store.putPlan(user, primary.projectId, { editPlan: variant.result.editPlan, agentPlan: variant.result.agentPlan, videoId: analysis.videoId, createdAt: Date.now(), generationRequest });
+            send("variant", { index: variant.index, direction: variant.direction, editPlan: stored.editPlan, agentPlan: stored.agentPlan, stats: variant.result.stats, projectId: primary.projectId, revision: stored.revision, updatedAt: stored.updatedAt, generationRequest: stored.generationRequest });
+          } else send("variant-error", { index: variant.index, message: "OpenClaw could not complete this edit. Check your Cerebras key and try again." });
+        }
+        send("summary", { count, ok, wallMs: Date.now() - startedAt, outputTokens: tokens, avgTps: ok ? Math.round(tpsSum / ok) : 0 });
+      } finally { try { await execution.dispose(); } finally { await release(); } }
+    }, req.signal);
+  } catch (error) { return apiError(error); }
 }

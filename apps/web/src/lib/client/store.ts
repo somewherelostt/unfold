@@ -7,12 +7,17 @@
 import { useSyncExternalStore } from "react";
 import { ASPECT_SIZE, sampleLibrary, type EditPlan, type Library, type MediaAnalysis } from "@unfold/core";
 import * as api from "./api";
-import type { ApiStats, ChatMsg, GenerateRequest, Overrides, StyleChoice } from "./types";
+import type { ApiStats, ChatMsg, ExportJob, ExportReview, GenerateRequest, Overrides, StyleChoice, SupportingUpload } from "./types";
 import { STYLE_LABEL } from "./styles";
 import { planSteps, planSummary } from "./narrate";
+import { mergeSupporting } from "./broll";
+import { planKey } from "./plan-key";
 
 type Snap = { base: EditPlan; overrides: Overrides; serverId: string };
-export type PlanEntry = Snap & { past: Snap[]; future: Snap[]; chat: ChatMsg[]; name: string; stats?: ApiStats; direction?: string; request?: Omit<GenerateRequest, "count"> };
+type SavedVersion = { savedPlan: EditPlan; revision?: number; updatedAt?: number };
+export type PlanEntry = Snap & { past: Snap[]; future: Snap[]; chat: ChatMsg[]; name: string; stats?: ApiStats; direction?: string; request?: Omit<GenerateRequest, "count">;
+  revision?: number; updatedAt?: number; savedPlan?: EditPlan; save?: { status: "saving" | "saved" | "error" | "conflict"; message?: string };
+};
 
 export type RunStatus = "idle" | "preparing" | "queued" | "generating" | "done" | "error" | "cancelled";
 export const isActive = (r?: Run) => !!r && ["preparing", "queued", "generating"].includes(r.status);
@@ -50,8 +55,14 @@ export type State = {
   alts: Record<string, Run>; // alternate versions, keyed by the root plan id
   altRoot: Record<string, string>; // planId → root plan id of its alternates group
   planErrors: Record<string, string>; // cold-load failures for /app/edit/[id]
+  planAccess: Record<string, "checking" | "ready" | "error">;
   plans: Record<string, PlanEntry>;
   analyses: Record<string, MediaAnalysis>; // by videoId (timeline thumbnails on cold loads)
+  supporting: Record<string, SupportingUpload[]>; // inventory belongs to its primary source
+  supportingErrors: Record<string, string>;
+  reviews: Record<string, ExportReview>;
+  savedVersions: Record<string, SavedVersion>;
+  exportJobs: Record<string, ExportJob>;
   library: Library;
 };
 
@@ -62,8 +73,14 @@ const initial: State = {
   alts: {},
   altRoot: {},
   planErrors: {},
+  planAccess: {},
   plans: {},
   analyses: {},
+  supporting: {},
+  supportingErrors: {},
+  reviews: {},
+  savedVersions: {},
+  exportJobs: {},
   library: sampleLibrary,
 };
 
@@ -83,16 +100,21 @@ function ensureLoaded() {
       saved.run = settle(saved.run);
       saved.alts = Object.fromEntries(Object.entries(saved.alts ?? {}).map(([k, r]) => [k, settle(r)]));
       saved.planErrors = {};
+      saved.planAccess = {};
       saved.run.slotErrors ??= [];
       saved.project.analyzing = false;
+      saved.supporting = Object.fromEntries(Object.entries(saved.supporting ?? {}).map(([id, items]) => [id, items.map((item) =>
+        ["uploading", "analyzing"].includes(item.status) ? { ...item, status: "error" as const, error: "Interrupted by a reload. Choose this file again to retry." } : item)]));
       if (saved.project.referenceUrl.startsWith("upload:")) {
         saved.project.referenceUrl = "";
         saved.project.referenceNotice = "Attach your inspiration video again after reloading.";
         if (saved.project.style?.kind === "file") saved.project.style = null;
       }
       // In-flight remixes die with the page; don't leave them spinning.
-      for (const e of Object.values(saved.plans ?? {}))
+      for (const e of Object.values(saved.plans ?? {})) {
         e.chat = e.chat.map((m) => (m.role === "agent" && m.pending ? { ...m, pending: false, draft: undefined, text: "Interrupted by a reload. Send it again." } : m));
+        if (e.save?.status === "saving") e.save = { status: "error", message: "The save was interrupted. Check the saved edit before trying again." };
+      }
       // Blob URLs don't survive reloads.
       if (saved.project.analysis?.src.startsWith("blob:")) saved.project = { ...saved.project, analysis: null, videoId: null, fileName: null };
       state = { ...initial, ...saved, analyses: saved.analyses ?? {}, altRoot: saved.altRoot ?? {}, library: saved.library ?? sampleLibrary };
@@ -101,16 +123,26 @@ function ensureLoaded() {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+function writeState() {
+  try {
+    window.sessionStorage.setItem(KEY, JSON.stringify(state));
+    return true;
+  } catch { return false; }
+}
+
+/** Flush a navigation handoff before removing its URL or attached-file recovery copy. */
+export function persistState() {
+  ensureLoaded();
+  clearTimeout(saveTimer);
+  return writeState();
+}
+
 function set(fn: (s: State) => State) {
   ensureLoaded();
   state = fn(state);
   listeners.forEach((l) => l());
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      window.sessionStorage.setItem(KEY, JSON.stringify(state));
-    } catch {}
-  }, 200);
+  saveTimer = setTimeout(writeState, 200);
 }
 
 function subscribe(l: () => void) {
@@ -131,6 +163,9 @@ export const getState = getSnapshot;
 // ---------- derived ----------
 export function applyOverrides(base: EditPlan, o: Overrides, lib: Library): EditPlan {
   const p: EditPlan = { ...base, captions: { ...base.captions } };
+  if (o.supporting) p.supporting = o.supporting;
+  if (o.broll || o.brollDisabled) p.broll = (o.broll ?? base.broll ?? []).filter((b) => !o.brollDisabled?.includes(b.id));
+  if (o.broll || o.brollDisabled || o.supporting) delete p.quality;
   if (o.captions !== undefined) p.captions.enabled = o.captions;
   if (o.captionPreset) {
     p.captions.preset = o.captionPreset;
@@ -209,6 +244,7 @@ function rechunk(chunks: EditPlan["captions"]["chunks"], n: number): EditPlan["c
 /** Human-readable list of what changed between two plans (remix change cards). */
 export function planDiff(a: EditPlan, b: EditPlan): string[] {
   const out: string[] = [];
+  if (JSON.stringify(a.broll ?? []) !== JSON.stringify(b.broll ?? [])) out.push(`${b.broll?.length ?? 0} supporting shots in the edit`);
   const avg = (p: EditPlan) => p.clips.reduce((x, c) => x + c.speed * (c.end - c.start), 0) / Math.max(0.01, p.durationSec);
   const r = avg(b) / Math.max(0.01, avg(a));
   if (r > 1.05) out.push(`Cuts ${r.toFixed(1)}× faster`);
@@ -261,6 +297,19 @@ export const actions = {
   setPrompt(prompt: string) {
     set((s) => ({ ...s, project: { ...s.project, prompt } }));
   },
+  recordExport(id: string, review: ExportReview) {
+    set((s) => ({ ...s, reviews: { ...s.reviews, [id]: review } }));
+  },
+  trackExportJob(id: string, job: ExportJob) {
+    set((s) => ({ ...s, exportJobs: { ...s.exportJobs, [id]: job } }));
+  },
+  clearExportJob(id: string, jobId: string) {
+    set((s) => {
+      if (s.exportJobs[id]?.jobId !== jobId) return s;
+      const exportJobs = { ...s.exportJobs }; delete exportJobs[id];
+      return { ...s, exportJobs };
+    });
+  },
   setStyle(style: StyleChoice | null) {
     set((s) => ({ ...s, project: { ...s.project, style } }));
   },
@@ -281,6 +330,7 @@ export const actions = {
       return false;
     }
     const ctrl = newController("analysis");
+    cancelSupportingUploads(state.project.videoId);
     const current = () => controllers.get("analysis") === ctrl && !ctrl.signal.aborted;
     set((s) => ({ ...s, project: { ...s.project, fileName: file.name, videoId: null, analysis: null, analyzing: true, analyzeError: null } }));
     analysisJob = (async () => {
@@ -305,6 +355,7 @@ export const actions = {
     }
   },
   clearUpload() {
+    cancelSupportingUploads(state.project.videoId);
     controllers.get("analysis")?.abort();
     controllers.delete("analysis");
     analysisJob = null;
@@ -321,6 +372,115 @@ export const actions = {
       const library = await api.getLibrary();
       set((s) => ({ ...s, library }));
     } catch {}
+  },
+
+  async loadSupporting(primaryVideoId: string) {
+    const key = `supporting-load:${primaryVideoId}`;
+    if (controllers.has(key)) return;
+    const ctrl = newController(key);
+    try {
+      const resources = await api.listSupporting(primaryVideoId, ctrl.signal);
+      const assets = await Promise.all(resources.map(async (resource): Promise<SupportingUpload> => {
+        const known = state.supporting[primaryVideoId]?.find((x) => (x.videoId ?? x.asset?.videoId) === resource.videoId);
+        if (known?.asset) return { ...known, description: resource.description, asset: { ...known.asset, description: resource.description } };
+        try {
+          const a = await api.analyze(resource.videoId, ctrl.signal);
+          return { id: known?.id ?? resource.assetId, videoId: resource.videoId, name: resource.filename, description: resource.description, status: "ready" as const, progress: 1, selected: known?.selected ?? true,
+            asset: { videoId: a.videoId, name: resource.filename, description: resource.description, src: a.src, width: a.width, height: a.height, durationSec: a.durationSec, frames: a.frames } };
+        } catch (e) {
+          ctrl.signal.throwIfAborted();
+          return { id: known?.id ?? resource.assetId, videoId: resource.videoId, name: resource.filename, description: resource.description, status: "error" as const, progress: 1, selected: false, error: errMsg(e) };
+        }
+      }));
+      ctrl.signal.throwIfAborted();
+      set((s) => {
+        const existing = s.supporting[primaryVideoId] ?? [];
+        const merged = [...existing, ...assets.filter((a) => !existing.some((x) => x.id === a.id || ((a.videoId ?? a.asset?.videoId) && (x.videoId ?? x.asset?.videoId) === (a.videoId ?? a.asset?.videoId))))];
+        return { ...s, supporting: { ...s.supporting, [primaryVideoId]: merged }, supportingErrors: { ...s.supportingErrors, [primaryVideoId]: "" } };
+      });
+    } catch (e) {
+      if (!ctrl.signal.aborted) set((s) => ({ ...s, supportingErrors: { ...s.supportingErrors, [primaryVideoId]: (e as { status?: number })?.status === 404 ? "This primary clip isn't available in this account. Upload it again to attach supporting footage." : errMsg(e) } }));
+    } finally { if (controllers.get(key) === ctrl) controllers.delete(key); }
+  },
+
+  async uploadSupporting(primaryVideoId: string, file: File, planId?: string) {
+    if (!file.type.startsWith("video/")) {
+      set((s) => ({ ...s, supportingErrors: { ...s.supportingErrors, [primaryVideoId]: "Choose a supporting video. Still images are not supported yet." } }));
+      return false;
+    }
+    if ((state.supporting[primaryVideoId] ?? []).filter((a) => a.asset || a.videoId || ["uploading", "analyzing"].includes(a.status)).length >= 4) {
+      set((s) => ({ ...s, supportingErrors: { ...s.supportingErrors, [primaryVideoId]: "This project already has four supporting uploads. Remove an unused upload before replacing it." } }));
+      return false;
+    }
+    const id = uid();
+    const key = `supporting:${primaryVideoId}:${id}`;
+    const ctrl = newController(key);
+    const current = () => controllers.get(key) === ctrl && !ctrl.signal.aborted;
+    const update = (patch: Partial<SupportingUpload>) => {
+      if (current()) set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((a) => a.id === id ? { ...a, ...patch } : a) } }));
+    };
+    set((s) => ({ ...s, supportingErrors: { ...s.supportingErrors, [primaryVideoId]: "" }, supporting: { ...s.supporting, [primaryVideoId]: [...(s.supporting[primaryVideoId] ?? []), { id, name: file.name, description: "", status: "uploading", progress: 0, selected: true }] } }));
+    try {
+      const { videoId } = await api.uploadSupporting(primaryVideoId, file, "", ctrl.signal, (progress) => update({ progress }));
+      ctrl.signal.throwIfAborted();
+      if (!current()) return false;
+      update({ status: "analyzing", progress: 1, videoId });
+      const a = await api.analyze(videoId, ctrl.signal);
+      ctrl.signal.throwIfAborted();
+      if (!current()) return false;
+      const asset = { videoId, name: file.name.slice(0, 160), description: "", src: a.src, width: a.width, height: a.height, durationSec: a.durationSec, frames: a.frames };
+      update({ status: "ready", asset });
+      const entry = planId ? state.plans[planId] : undefined;
+      if (entry && entry.base.source.videoId === primaryVideoId) actions.override(planId!, { supporting: mergeSupporting(entry.overrides.supporting ?? entry.base.supporting, [asset]) });
+      return true;
+    } catch (e) {
+      update({ status: "error", error: errMsg(e) });
+      return false;
+    } finally { if (controllers.get(key) === ctrl) controllers.delete(key); }
+  },
+  cancelSupporting(primaryVideoId: string, id: string) {
+    const key = `supporting:${primaryVideoId}:${id}`;
+    controllers.get(key)?.abort();
+    controllers.delete(key);
+    set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((a) => a.id === id ? { ...a, selected: false, status: a.status === "ready" ? "ready" : "cancelled" } : a) } }));
+  },
+  selectSupporting(primaryVideoId: string, id: string, selected: boolean) {
+    set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((a) => a.id === id ? { ...a, selected } : a) } }));
+  },
+  async retrySupporting(primaryVideoId: string, id: string, planId?: string) {
+    const item = state.supporting[primaryVideoId]?.find((a) => a.id === id);
+    const videoId = item?.videoId ?? item?.asset?.videoId;
+    if (!item || !videoId) return;
+    const key = `supporting:${primaryVideoId}:${id}`;
+    const ctrl = newController(key);
+    set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((a) => a.id === id ? { ...a, status: "analyzing", error: undefined } : a) } }));
+    try {
+      const a = await api.analyze(videoId, ctrl.signal);
+      ctrl.signal.throwIfAborted();
+      if (controllers.get(key) !== ctrl) return;
+      const asset = { videoId, name: item.name, description: item.description, src: a.src, width: a.width, height: a.height, durationSec: a.durationSec, frames: a.frames };
+      set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((x) => x.id === id ? { ...x, asset, status: "ready", selected: true } : x) } }));
+      const entry = planId ? state.plans[planId] : undefined;
+      if (entry?.base.source.videoId === primaryVideoId) actions.override(planId!, { supporting: mergeSupporting(entry.overrides.supporting ?? entry.base.supporting, [asset]) });
+    } catch (e) {
+      if (!ctrl.signal.aborted) set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((x) => x.id === id ? { ...x, status: "error", error: errMsg(e) } : x) } }));
+    } finally { if (controllers.get(key) === ctrl) controllers.delete(key); }
+  },
+  async deleteSupporting(primaryVideoId: string, id: string) {
+    const item = state.supporting[primaryVideoId]?.find((a) => a.id === id);
+    const videoId = item?.videoId ?? item?.asset?.videoId;
+    if (videoId && Object.values(state.plans).some((e) => applyOverrides(e.base, e.overrides, state.library).broll?.some((b) => b.assetId === videoId))) throw new Error("Remove this video's cutaways from your local edits before removing the upload.");
+    if (videoId) await api.deleteSupporting(primaryVideoId, videoId);
+    actions.cancelSupporting(primaryVideoId, id);
+    set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).filter((a) => a.id !== id) } }));
+  },
+  async describeSupporting(primaryVideoId: string, id: string, description: string, planId?: string) {
+    const item = state.supporting[primaryVideoId]?.find((a) => a.id === id);
+    if (!item?.asset) return;
+    await api.describeSupporting(primaryVideoId, item.asset.videoId, description);
+    set((s) => ({ ...s, supporting: { ...s.supporting, [primaryVideoId]: (s.supporting[primaryVideoId] ?? []).map((a) => a.id === id ? { ...a, description, asset: a.asset && { ...a.asset, description } } : a) } }));
+    const entry = planId ? state.plans[planId] : undefined;
+    if (entry?.base.source.videoId === primaryVideoId) actions.override(planId!, { supporting: (entry.overrides.supporting ?? entry.base.supporting ?? []).map((a) => a.videoId === item.asset!.videoId ? { ...a, description } : a) });
   },
 
   /** Retry analysis of the uploaded clip after a failure. */
@@ -375,7 +535,7 @@ export const actions = {
       if (link || file) {
         setRun({ phase: "Watching your inspiration video" });
         try {
-          const ref = await api.reference(file ? { file } : { url: link }, ctrl.signal);
+          const ref = await api.reference(file ? { file } : { url: link }, videoId, ctrl.signal);
           if (!current()) return null;
           styleId = ref.styleId;
           log(`Copied the style of ${ref.title ? `“${ref.title}”` : "your reference"}${ref.cutStats ? ` · ${Math.round(ref.cutStats.cutsPerMinute)} cuts/min` : ""}`);
@@ -386,7 +546,10 @@ export const actions = {
       if (ctrl.signal.aborted) return null;
 
       log("Sent your clip to Kimi K3.1 Pro on Cerebras");
-      const ids = await streamRun({ videoId, prompt: promptFor(p), styleId, aspect: p.aspect, count: 1 }, ctrl.signal, updateRun);
+      const selected = (state.supporting[videoId] ?? []).filter((a) => a.selected !== false);
+      if (selected.some((a) => a.status !== "ready")) throw new Error("Wait for supporting footage to finish, or unselect the unfinished files.");
+      if (selected.length > 4) throw new Error("Choose at most four supporting videos for this edit.");
+      const ids = await streamRun({ videoId, prompt: promptFor(p), styleId, aspect: p.aspect, count: 1, supportingAssetIds: selected.flatMap((a) => a.asset ? [a.asset.videoId] : []) }, ctrl.signal, updateRun);
       const first = ids[0];
       if (first && state.plans[first]) {
         // The editor opens with the agent's account of what it did.
@@ -404,7 +567,7 @@ export const actions = {
       return first ?? null;
     } catch (e) {
       if (ctrl.signal.aborted) return null;
-      setRun({ status: "error", error: errMsg(e) });
+      setRun({ status: "error", error: (e as { status?: number })?.status === 404 ? "Your clip or supporting footage isn't available in this account. Return to upload it again; your local draft is preserved." : errMsg(e) });
       return null;
     } finally {
       if (controllers.get("main") === ctrl) controllers.delete("main");
@@ -433,7 +596,7 @@ export const actions = {
     }));
     try {
       const prompt = [entry.request?.prompt || base.rationale, `Make takes that differ from “${base.title}”: different hook, pacing, track and caption style.`].join("\n");
-      await streamRun({ videoId, prompt, styleId: entry.request?.styleId, aspect: base.aspect, count }, ctrl.signal, setAlt, { offset, root });
+      await streamRun({ videoId, prompt, styleId: entry.request?.styleId, aspect: base.aspect, count, supportingAssetIds: (base.supporting ?? []).map((a) => a.videoId) }, ctrl.signal, setAlt, { offset, root });
     } catch (e) {
       if (!ctrl.signal.aborted) setAlt((r) => ({ ...r, status: "error", error: errMsg(e) }));
     } finally {
@@ -453,27 +616,56 @@ export const actions = {
   },
 
   async ensurePlan(id: string) {
-    set((s) => ({ ...s, planErrors: { ...s.planErrors, [id]: "" } }));
-    if (!state.plans[id]) {
-      try {
-        const { editPlan } = await api.getPlan(id);
-        set((s) => ({ ...s, plans: { ...s.plans, [id]: newEntry(editPlan) } }));
-      } catch (e) {
-        set((s) => ({ ...s, planErrors: { ...s.planErrors, [id]: errMsg(e) } }));
-        return;
-      }
-    }
-    const videoId = state.plans[id]?.base.source.videoId;
-    if (videoId && !state.analyses[videoId] && state.project.analysis?.videoId !== videoId) {
-      try {
-        const analysis = await api.analyze(videoId); // cached server-side
-        set((s) => ({ ...s, analyses: { ...s.analyses, [videoId]: analysis } }));
-      } catch {}
-    }
+    if (planLoads.has(id)) return planLoads.get(id);
+    const job = loadOwnedPlan(id);
+    planLoads.set(id, job);
+    try { await job; } finally { planLoads.delete(id); }
   },
 
   rename(id: string, name: string) {
     set((s) => (s.plans[id] ? { ...s, plans: { ...s.plans, [id]: { ...s.plans[id], name } } } : s));
+  },
+
+  async savePlan(id: string) {
+    const entry = state.plans[id];
+    if (!entry || entry.save?.status === "saving") return;
+    const submitted = applyOverrides(entry.base, entry.overrides, state.library);
+    const key = `save:${id}`;
+    const ctrl = newController(key);
+    const update = (patch: Partial<PlanEntry>) => set((s) => {
+      const current = s.plans[id];
+      return current?.serverId === entry.serverId ? { ...s, plans: { ...s.plans, [id]: { ...current, ...patch } } } : s;
+    });
+    update({ save: { status: "saving" } });
+    try {
+      let revision = entry.revision;
+      if (revision === undefined) {
+        const remote = await api.getPlan(entry.serverId);
+        if (planKey(remote.editPlan) !== planKey(entry.savedPlan ?? entry.base)) { update({ save: { status: "conflict", message: "This edit was changed elsewhere. Reload the saved edit, or keep your local draft and export it." } }); return; }
+        revision = remote.revision;
+      }
+      if (revision === undefined) throw new Error("The server did not return a saved revision. Reload the edit before saving.");
+      const saved = await api.savePlan(entry.serverId, revision, submitted, ctrl.signal);
+      ctrl.signal.throwIfAborted();
+      set((s) => {
+        const current = s.plans[id];
+        const version = { revision: saved.revision, updatedAt: saved.updatedAt, savedPlan: saved.editPlan };
+        const unchanged = current && planKey(applyOverrides(current.base, current.overrides, s.library)) === planKey(submitted);
+        return { ...s, savedVersions: { ...s.savedVersions, [entry.serverId]: version }, plans: current?.serverId === entry.serverId ? { ...s.plans, [id]: { ...current, ...(unchanged ? { base: saved.editPlan, overrides: {} } : {}), ...version, save: { status: "saved" } } } : s.plans };
+      });
+    } catch (e) {
+      if (!ctrl.signal.aborted) update({ save: { status: (e as { status?: number })?.status === 409 ? "conflict" : "error", message: errMsg(e) } });
+    } finally { if (controllers.get(key) === ctrl) controllers.delete(key); }
+  },
+  async reloadSavedPlan(id: string) {
+    const entry = state.plans[id];
+    if (!entry) return;
+    try {
+      const saved = await api.getPlan(entry.serverId);
+      if (state.plans[id]?.serverId !== entry.serverId) return;
+      commit(id, () => ({ base: saved.editPlan, overrides: {}, serverId: entry.serverId }));
+      set((s) => ({ ...s, savedVersions: { ...s.savedVersions, [entry.serverId]: { savedPlan: saved.editPlan, revision: saved.revision, updatedAt: saved.updatedAt } }, plans: { ...s.plans, [id]: { ...s.plans[id], revision: saved.revision, updatedAt: saved.updatedAt, savedPlan: saved.editPlan, save: { status: "saved" } } } }));
+    } catch (e) { set((s) => ({ ...s, plans: { ...s.plans, [id]: { ...s.plans[id], save: { status: "error", message: errMsg(e) } } } })); }
   },
 
   /** Manual edit from the decisions panel. */
@@ -488,7 +680,7 @@ export const actions = {
       const prev = e.past[e.past.length - 1];
       return {
         ...s,
-        plans: { ...s.plans, [id]: { ...e, ...prev, past: e.past.slice(0, -1), future: [snap(e), ...e.future] } },
+        plans: { ...s.plans, [id]: { ...e, ...prev, ...serverVersion(s, e, prev), past: e.past.slice(0, -1), future: [snap(e), ...e.future] } },
       };
     });
   },
@@ -499,7 +691,7 @@ export const actions = {
       const [next, ...rest] = e.future;
       return {
         ...s,
-        plans: { ...s.plans, [id]: { ...e, ...next, future: rest, past: [...e.past, snap(e)] } },
+        plans: { ...s.plans, [id]: { ...e, ...next, ...serverVersion(s, e, next), future: rest, past: [...e.past, snap(e)] } },
       };
     });
   },
@@ -515,7 +707,7 @@ export const actions = {
     let draft = "";
     try {
       let got = false;
-      for await (const ev of api.remix({ planId: e.serverId, message }, ctrl.signal)) {
+      for await (const ev of api.remix({ planId: e.serverId, message, editPlan: applyOverrides(e.base, e.overrides, state.library) }, ctrl.signal)) {
         ctrl.signal.throwIfAborted();
         if (ev.type === "delta") {
           draft += ev.text;
@@ -568,7 +760,40 @@ export const actions = {
 };
 
 let analysisJob: Promise<MediaAnalysis> | null = null;
+const planLoads = new Map<string, Promise<void>>();
+async function loadOwnedPlan(id: string) {
+  set((s) => ({ ...s, planErrors: { ...s.planErrors, [id]: "" }, planAccess: { ...s.planAccess, [id]: "checking" } }));
+  try {
+    const local = state.plans[id];
+    const remote = await api.getPlan(local?.serverId ?? id);
+    set((s) => {
+      const entry = s.plans[id];
+      const same = entry && planKey(remote.editPlan) === planKey(entry.savedPlan ?? entry.base);
+      const next = entry ? same ? { ...entry, revision: remote.revision, updatedAt: remote.updatedAt, savedPlan: remote.editPlan } : { ...entry, save: { status: "conflict" as const, message: "A newer saved edit is available. Reload it or keep working on your local draft." } } : { ...newEntry(remote.editPlan), revision: remote.revision, updatedAt: remote.updatedAt, savedPlan: remote.editPlan };
+      return { ...s, savedVersions: { ...s.savedVersions, [remote.editPlan.id]: { savedPlan: remote.editPlan, revision: remote.revision, updatedAt: remote.updatedAt } }, plans: { ...s.plans, [id]: next }, planAccess: { ...s.planAccess, [id]: "ready" } };
+    });
+  } catch (e) {
+    const message = (e as { status?: number })?.status === 404 ? "This edit isn't available for this account. Your local draft is preserved. Start from a fresh upload, or sign in to the account that owns it." : errMsg(e);
+    set((s) => ({ ...s, planErrors: { ...s.planErrors, [id]: message }, planAccess: { ...s.planAccess, [id]: "error" } }));
+    return;
+  }
+  const videoId = state.plans[id]?.base.source.videoId;
+  const assets = state.plans[id]?.base.supporting ?? [];
+  if (videoId && assets.length) set((s) => ({ ...s, supporting: { ...s.supporting, [videoId]: [...(s.supporting[videoId] ?? []), ...assets.filter((a) => !(s.supporting[videoId] ?? []).some((x) => x.asset?.videoId === a.videoId)).map((asset) => ({ id: asset.videoId, name: asset.name, description: asset.description, asset, status: "ready" as const, progress: 1, selected: true }))] } }));
+  if (videoId && !state.analyses[videoId] && state.project.analysis?.videoId !== videoId) {
+    try {
+      const analysis = await api.analyze(videoId);
+      set((s) => ({ ...s, analyses: { ...s.analyses, [videoId]: analysis } }));
+    } catch {}
+  }
+}
 const controllers = new Map<string, AbortController>();
+function cancelSupportingUploads(primaryVideoId: string | null) {
+  if (!primaryVideoId) return;
+  for (const key of controllers.keys()) {
+    if (key.startsWith(`supporting:${primaryVideoId}:`)) actions.cancelSupporting(primaryVideoId, key.slice(`supporting:${primaryVideoId}:`.length));
+  }
+}
 function newController(key: string) {
   controllers.get(key)?.abort();
   const c = new AbortController();
@@ -589,7 +814,7 @@ async function streamRun(req: GenerateRequest, signal: AbortSignal, update: (fn:
       if (ev.type === "start") update((r) => ({ ...r, status: "queued", queuedAt: Date.now(), phase: undefined }));
       else if (ev.type === "variant") {
         const { index, editPlan, stats, direction } = ev;
-        const request = { videoId: req.videoId, prompt: req.prompt, styleId: req.styleId, aspect: req.aspect };
+        const request = { videoId: req.videoId, prompt: req.prompt, styleId: req.styleId, aspect: req.aspect, supportingAssetIds: req.supportingAssetIds };
         set((s) => ({ ...s, plans: { ...s.plans, [editPlan.id]: { ...newEntry(editPlan, stats, direction), request } }, altRoot: root ? { ...s.altRoot, [editPlan.id]: root } : s.altRoot }));
         update((r) => {
           const slots = [...r.slots];
@@ -645,9 +870,14 @@ function commit(id: string, fn: (e: PlanEntry) => Snap) {
     const next = fn(e);
     return {
       ...s,
-      plans: { ...s.plans, [id]: { ...e, ...next, past: [...e.past, snap(e)].slice(-50), future: [] } },
+      plans: { ...s.plans, [id]: { ...e, ...next, ...serverVersion(s, e, next), past: [...e.past, snap(e)].slice(-50), future: [] } },
     };
   });
+}
+function serverVersion(s: State, before: Snap, next: Snap): Partial<PlanEntry> {
+  if (before.serverId === next.serverId) return {};
+  const version = s.savedVersions[next.serverId];
+  return { revision: version?.revision, updatedAt: version?.updatedAt, savedPlan: version?.savedPlan ?? next.base, save: undefined };
 }
 function pushChat(id: string, ...msgs: ChatMsg[]) {
   set((s) => (s.plans[id] ? { ...s, plans: { ...s.plans, [id]: { ...s.plans[id], chat: [...s.plans[id].chat, ...msgs] } } } : s));

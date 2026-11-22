@@ -1,7 +1,7 @@
 /**
  * Encrypted per-user API key storage (table public.api_keys, RLS: owner only). Server only.
  *
- * Agent usage:  const key = await getUserApiKey(user.id, "cerebras");  // falls back to env
+ * Agent usage: const key = await getUserApiKey(user.id, "cerebras");
  *
  * When the database isn't configured and UNFOLD_DEV_NO_AUTH=1, keys live in process memory (still encrypted).
  */
@@ -12,11 +12,6 @@ import { createAdminClient, createClient } from "./server";
 
 export type StoredKeyInfo = { provider: Provider; last4: string; createdAt: string };
 type Row = Sealed & { provider: Provider; last4: string; created_at: string };
-
-const ENV_FALLBACK: Record<Provider, string | undefined> = {
-  cerebras: "CEREBRAS_API_KEY",
-  gpu: "GPU_API_KEY",
-};
 
 // Dev-bypass memory store, survives hot reloads.
 const g = globalThis as unknown as { __unfoldDevKeys?: Map<string, Row> };
@@ -92,18 +87,8 @@ export async function getStoredUserApiKey(userId: string, provider: Provider): P
 }
 
 /**
- * Key for the agent / server code: the user's stored key, else the server env key
- * (CEREBRAS_API_KEY, GPU_API_KEY). Null if neither exists.
+ * User-funded execution never falls back to a shared credential.
  */
 export async function getUserApiKey(userId: string | null | undefined, provider: Provider): Promise<string | null> {
-  if (userId) {
-    try {
-      const own = await getStoredUserApiKey(userId, provider);
-      if (own) return own;
-    } catch (err) {
-      console.warn(`[unfold] could not read ${provider} key for user, using env fallback:`, (err as Error).message);
-    }
-  }
-  const envName = ENV_FALLBACK[provider];
-  return (envName && process.env[envName]) || null;
+  return userId ? getStoredUserApiKey(userId, provider) : null;
 }

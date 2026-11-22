@@ -30,11 +30,6 @@ export default function SettingsPage() {
         <p className="mt-3 max-w-xl text-[13px] leading-5 text-text-2">
           Check your Cerebras key and keep it encrypted in your account. Only the last four characters are shown after saving.
         </p>
-        <div className="mt-5">
-          <Notice title="Editing connection">
-            Editing uses the shared OpenClaw connection. Saving or testing a key here leaves that connection in place.
-          </Notice>
-        </div>
         <div className="mt-8">
           <Suspense fallback={<KeysSkeleton />}>
             <Keys />
@@ -78,6 +73,11 @@ async function Keys() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Notice title="Editing connection">
+        {user.dev
+          ? "Local demo edits use the server-funded OpenClaw connection. Saved keys here are used only for the key check."
+          : "Your saved Cerebras key runs your edits in an isolated OpenClaw connection. Add a key before generating an edit."}
+      </Notice>
       {devMemory ? (
         <Notice tone="warn" title="Local demo mode">
           Keys stay encrypted in server memory for this session only{encOk ? "" : " (with a throwaway encryption key)"}. Connect a database to keep them.
@@ -102,7 +102,7 @@ async function Keys() {
             description={meta.description}
             placeholder={meta.placeholder}
             docsUrl={meta.docsUrl}
-            required={meta.required}
+            required={id === "cerebras" && !user.dev}
             testable={meta.testable}
             model={id === "cerebras" ? "Kimi K3.1 Pro" : undefined}
             last4={byProvider.get(id) ?? null}

@@ -15,6 +15,7 @@ type Frames = { t: number; url: string }[];
 const LABEL_W = 92;
 const TRACKS = [
   { key: "video", label: "Video", icon: <IconMedia size={14} /> },
+  { key: "broll", label: "Cutaways", icon: <IconMedia size={14} /> },
   { key: "captions", label: "Captions", icon: <IconCaptions size={14} /> },
   { key: "music", label: "Music", icon: <IconMusic size={14} /> },
   { key: "sfx", label: "Sound FX", icon: <IconSpeaker size={14} /> },
@@ -43,11 +44,13 @@ export function Timeline({
   frames,
   reveal = TRACKS.length,
   playerRef,
+  onSelectBroll,
 }: {
   plan?: EditPlan;
   frames: Frames;
   reveal?: number;
   playerRef?: RefObject<PlayerRef | null>;
+  onSelectBroll?: (id: string) => void;
 }) {
   const area = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -110,10 +113,10 @@ export function Timeline({
   return (
     <div className="chrome flex h-full select-none px-3 pb-3 pt-1.5 text-[11px]">
       {/* labels */}
-      <div className="shrink-0" style={{ width: LABEL_W }}>
+      <div className="sticky left-0 z-30 shrink-0 bg-surface-1/95" style={{ width: LABEL_W }}>
         <div className="h-6" />
         {TRACKS.map((t, i) => (
-          <div key={t.key} className={cx("mb-1 flex h-10 items-center gap-1.5 pl-1 text-[12px] transition-opacity duration-300", i < reveal ? "text-text-3" : "text-text-4 opacity-50")}>
+          <div key={t.key} className={cx("mb-1 flex h-10 items-center gap-1.5 pl-1 text-[12px] transition-opacity duration-300", (i === 0 ? 0 : i - 1) < reveal ? "text-text-3" : "text-text-4 opacity-50")}>
             {t.icon}
             {t.label}
           </div>
@@ -180,6 +183,21 @@ export function Timeline({
                 style={{ left: pct(t.at) }}
               />
             ))}
+          </Lane>
+
+          <Lane on={reveal > 0}>
+            {(plan.broll ?? []).map((shot) => {
+              const asset = plan.supporting?.find((a) => a.videoId === shot.assetId);
+              return <button key={shot.id} type="button" onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => { setSelected(shot.id); playerRef?.current?.seekTo(Math.round(shot.start * plan.fps)); onSelectBroll?.(shot.id); }}
+                aria-label={`Edit cutaway ${asset?.name ?? "supporting shot"}, ${clock(shot.start)} to ${clock(shot.end)}`}
+                title={shot.reason} aria-pressed={selected === shot.id}
+                className={cx("absolute inset-y-1 overflow-hidden rounded-md bg-surface-3 bg-cover bg-center px-1.5 text-left text-[10px] text-white", selected === shot.id && "shadow-[0_0_0_2px_var(--accent)]")}
+                style={{ left: pct(shot.start), width: w(shot.start, shot.end), backgroundImage: asset?.frames[0] ? `linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,.1)),url(${asset.frames[0].url})` : undefined }}>
+                <span className="line-clamp-2">{asset?.name ?? "Supporting shot"}</span>
+              </button>;
+            })}
+            {!plan.broll?.length && <span className="absolute inset-y-0 left-2 flex items-center text-[10px] text-text-4">Add supporting footage in Media</span>}
           </Lane>
 
           {/* captions */}

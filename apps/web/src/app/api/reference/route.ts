@@ -1,52 +1,55 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { analyzeStyle } from "@unfold/agent";
 import { requireUser } from "@/lib/auth/server";
-import { MEDIA_DIR, UPLOAD_DIR, loadFrame, store } from "@/server/store";
+import { createExecution } from "@/lib/auth/execution";
+import { storage, frameLoader, store } from "@/server/store";
+import { apiError } from "@/server/api-errors";
+import { StorageError, type PrivateAsset } from "@/server/private-storage";
 
 export const maxDuration = 300;
-
-/**
- * Copy the style of an inspiration video.
- * POST JSON {url} (public short-form video link) or multipart {file} (fallback)
- *   → {styleId, profile, cutStats, title, stats}
- */
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
-
-  const media = await import("@unfold/media");
-  const styleId = `s_${Date.now().toString(36)}_${randomBytes(3).toString("hex")}`;
-  const opts = { videoId: styleId, mediaDir: MEDIA_DIR, urlPrefix: "/media", skipProxy: true, maxFrames: 10 };
-
-  let ref: { analysis: any; stats: any; sourceUrl: string | null; title: string | null };
   try {
-    if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
-      const file = (await req.formData()).get("file");
-      if (!(file instanceof File)) return Response.json({ error: "file is required" }, { status: 400 });
-      await mkdir(UPLOAD_DIR, { recursive: true });
-      const p = path.join(UPLOAD_DIR, `${styleId}${path.extname(file.name) || ".mp4"}`);
-      await writeFile(p, Buffer.from(await file.arrayBuffer()));
-      const r = await media.analyzeReferenceFile(p, opts);
-      ref = { analysis: r.analysis, stats: (r as any).stats ?? media.cutStats(r.analysis), sourceUrl: null, title: file.name };
-    } else {
-      const { url } = (await req.json().catch(() => ({}))) as { url?: string };
-      if (!url || !/^https?:\/\//.test(url)) return Response.json({ error: "A video link is required" }, { status: 400 });
-      const r = await media.fetchReference(url, opts);
-      ref = { analysis: r.analysis, stats: r.stats, sourceUrl: r.sourceUrl, title: r.title };
-    }
-  } catch (e) {
-    return Response.json(
-      { error: "Couldn't fetch that video. Upload the file instead.", detail: e instanceof Error ? e.message : String(e) },
-      { status: 422 },
-    );
-  }
-
-  const { profile, stats } = await analyzeStyle(ref.analysis, loadFrame, {
-    cutsPerMinute: ref.stats.cutsPerMinute,
-    avgShotSec: ref.stats.avgShotSec,
-  });
-  await store.putStyle(styleId, { profile, sourceUrl: ref.sourceUrl });
-  return Response.json({ styleId, profile, cutStats: ref.stats, title: ref.title, stats });
+    const multipart = (req.headers.get("content-type") ?? "").includes("multipart/form-data");
+    const form = multipart ? await req.formData() : null;
+    const body = form ? null : await req.json().catch(() => ({})) as { url?: string; primaryVideoId?: string };
+    const projectId = String(form?.get("primaryVideoId") ?? body?.primaryVideoId ?? "");
+    await storage.getProject(user, projectId);
+    const videoId = `s_${randomUUID().replaceAll("-", "")}`;
+    const file = form?.get("file");
+    const url = body?.url;
+    if (form && (!(file instanceof File) || !file.size || file.size > 500 * 1024 * 1024)) throw new StorageError(400, "Upload a reference video smaller than 500 MB.");
+    if (!form && (typeof url !== "string" || !/^https?:\/\//.test(url))) throw new StorageError(400, "A reference video link is required.");
+    const extension = file instanceof File ? path.extname(file.name).toLowerCase() : ".mp4";
+    if (![".mp4", ".mov", ".m4v", ".webm", ".mkv"].includes(extension)) throw new StorageError(415, "Upload a reference video file.");
+    const release = await storage.acquireLease(user, projectId, "reference");
+    let execution;
+    try { execution = await createExecution(user, req.signal); }
+    catch (error) { await release(); throw error; }
+    try {
+      const asset: PrivateAsset = { assetId: videoId, videoId, projectId, primaryVideoId: projectId, role: "reference", description: "", filename: file instanceof File ? file.name.slice(0, 160) : "Reference video", extension, status: "uploaded", createdAt: Date.now() };
+      await storage.addAsset(user, projectId, asset);
+      const paths = await storage.assetPaths(user, videoId);
+      const media = await import("@unfold/media");
+      const options = { videoId, mediaDir: paths.mediaDir, urlPrefix: paths.urlPrefix, skipProxy: true, maxFrames: 8, signal: req.signal, maxDurationSec: 180, reuseExisting: true };
+      let reference;
+      try {
+      if (file instanceof File) {
+        await mkdir(path.dirname(paths.upload), { recursive: true, mode: 0o700 });
+        await writeFile(paths.upload, Buffer.from(await file.arrayBuffer()), { flag: "wx", mode: 0o600 });
+        reference = await media.analyzeReferenceFile(paths.upload, options);
+      } else reference = await media.fetchReference(url!, options);
+      } catch (error) {
+        if (error instanceof media.MediaError) throw new StorageError(error.code === "CANCELLED" ? 499 : 422, error.message);
+        throw error;
+      }
+      await storage.updateAsset(user, projectId, videoId, { status: "analyzed" });
+      const { profile, stats } = await analyzeStyle(reference.analysis, frameLoader(user, projectId), { cutsPerMinute: reference.stats.cutsPerMinute, avgShotSec: reference.stats.avgShotSec }, execution.config);
+      await store.putStyle(user, projectId, videoId, { profile, sourceUrl: url ?? null });
+      return Response.json({ styleId: videoId, profile, cutStats: reference.stats, title: reference.title ?? asset.filename, stats, projectId });
+    } finally { try { await execution.dispose(); } finally { await release(); } }
+  } catch (error) { return apiError(error); }
 }

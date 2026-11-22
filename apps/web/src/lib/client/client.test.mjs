@@ -48,6 +48,7 @@ function harness(apiOverrides = {}, storage = new Map(), extra = {}) {
     "react": { useSyncExternalStore: (_subscribe, snapshot) => snapshot() },
     "@unfold/core": { sampleLibrary: library, ASPECT_SIZE: { "9:16": { width: 1080, height: 1920 }, "1:1": { width: 1080, height: 1080 }, "16:9": { width: 1920, height: 1080 } } },
     "./api": api,
+    "@/components/ui/prompt-draft": { readPromptDraft: async () => null, removePromptDraft: async () => {} },
     ...extra,
   };
   const context = vm.createContext({
@@ -204,6 +205,55 @@ test("draft recovery deduplicates uploads and keeps failed drafts available for 
   assert.equal(removed, 2);
 });
 
+test("landing prompt parameters persist before the app URL is consumed", () => {
+  const storage = new Map();
+  const h = harness({}, storage, { "@/components/ui/prompt-draft": {} });
+  const { adoptPromptSearch } = h.load("draft.ts");
+  assert.equal(adoptPromptSearch(new URLSearchParams({ prompt: "Keep my own words", style: "Clean", aspect: "1:1" })), true);
+  const restored = harness({}, storage);
+  assert.equal(restored.getState().project.prompt, "Keep my own words");
+  assert.equal(restored.getState().project.promptStyle, "Clean");
+  assert.equal(restored.getState().project.aspect, "1:1");
+  restored.actions.setPrompt("My revised direction");
+  restored.flush();
+  assert.equal(harness({}, storage).getState().project.prompt, "My revised direction");
+  assert.equal(adoptPromptSearch(new URLSearchParams()), false);
+  assert.equal(h.getState().project.prompt, "Keep my own words");
+  assert.equal(adoptPromptSearch(new URLSearchParams({ draft: "attached", prompt: "Wait for the attached draft" })), false);
+});
+
+test("a delayed attachment recovery preserves changes typed while it is loading", async () => {
+  const read = deferred();
+  const h = harness({}, new Map(), {
+    "@/components/ui/prompt-draft": { readPromptDraft: () => read.promise, removePromptDraft: async () => {} },
+  });
+  const recovery = h.load("draft.ts").recoverPromptDraft("slow");
+  h.actions.setPrompt("The newer text wins");
+  h.actions.setPromptStyle("Chaos");
+  h.actions.setAspect("16:9");
+  read.resolve({ prompt: "Old landing text", style: "Clean", aspect: "1:1", file: { name: "clip.mp4", type: "video/mp4" } });
+  await recovery;
+  assert.equal(h.getState().project.prompt, "The newer text wins");
+  assert.equal(h.getState().project.promptStyle, "Chaos");
+  assert.equal(h.getState().project.aspect, "16:9");
+  assert.equal(h.getState().project.fileName, "clip.mp4");
+});
+
+test("failed local persistence keeps the original attachment available for recovery", async () => {
+  let removed = 0;
+  const h = harness({}, new Map(), {
+    "@/components/ui/prompt-draft": {
+      readPromptDraft: async () => ({ prompt: "Keep this", style: "Clean", aspect: "9:16", file: { name: "clip.mp4", type: "video/mp4" } }),
+      removePromptDraft: async () => { removed++; },
+    },
+  });
+  h.context.window.sessionStorage.setItem = () => { throw new Error("Storage is full"); };
+  await assert.rejects(h.load("draft.ts").recoverPromptDraft("retained"), /couldn't save this draft/);
+  assert.equal(removed, 0);
+  assert.equal(h.getState().project.prompt, "Keep this");
+  assert.equal(h.getState().project.fileName, "clip.mp4");
+});
+
 test("export sends the preview plan and options, and reports an interrupted stream", async () => {
   const h = harness({}, new Map(), { "./mock": {} });
   let request;
@@ -240,4 +290,248 @@ test("caption design controls persist, undo, and replace a previous design when 
   assert.equal(fresh.usePlan(id).plan.captions.design.textColor, "#ECE8DF");
   const base = { ...plan("saved"), captions: { ...plan("saved").captions, design } };
   assert.equal(h.applyOverrides(base, { captionPreset: "bold-pop" }, library).captions.design, undefined);
+});
+
+test("supporting uploads are source-scoped and a replaced primary cannot receive late assets", async () => {
+  const late = deferred();
+  const h = harness({ uploadSupporting: () => late.promise });
+  await h.actions.upload({ name: "primary.mp4", type: "video/mp4" });
+  const original = h.getState().project.videoId;
+  const pending = h.actions.uploadSupporting(original, { name: "detail.mp4", type: "video/mp4" });
+  h.api.uploadVideo = async () => ({ videoId: "other-project" });
+  await h.actions.upload({ name: "different.mp4", type: "video/mp4" });
+  late.resolve({ videoId: "late-detail" });
+  assert.equal(await pending, false);
+  assert.equal(h.getState().project.videoId, "other-project");
+  assert.equal(h.getState().supporting[original][0].status, "cancelled");
+  assert.equal(h.getState().supporting["other-project"], undefined);
+});
+
+test("generation uses only selected ready supporting asset IDs from its own primary", async () => {
+  let request, serial = 0;
+  const h = harness({ uploadSupporting: async () => ({ videoId: `support-${++serial}` }), async *generateVariants(req) { request = req; yield { type: "variant", index: 0, editPlan: plan("with-assets"), stats }; } });
+  await h.actions.upload({ name: "primary.mp4", type: "video/mp4" });
+  await h.actions.uploadSupporting("upload", { name: "proof.mp4", type: "video/mp4" });
+  await h.actions.uploadSupporting("upload", { name: "context.mp4", type: "video/mp4" });
+  const second = h.getState().supporting.upload[1];
+  h.actions.selectSupporting("upload", second.id, false);
+  await h.actions.generate();
+  assert.deepEqual(Array.from(request.supportingAssetIds), ["support-1"]);
+  assert.equal(request.supporting, undefined);
+  assert.equal(h.getState().plans["with-assets"].request.supportingAssetIds[0], "support-1");
+});
+
+function supportingFixture() {
+  return { videoId: "detail", name: "Hands demonstrating the product", description: "A real close-up", src: "/detail.mp4", width: 1920, height: 1080, durationSec: 6, frames: [{ t: 0, url: "/detail0.jpg" }, { t: 1, url: "/detail1.jpg" }, { t: 2, url: "/detail2.jpg" }] };
+}
+
+test("manual cutaways survive reload, disable, undo and redo with exact preview/export parity", async () => {
+  const h = harness({}, new Map(), { "./mock": {} });
+  const id = await h.actions.generate();
+  const asset = supportingFixture();
+  const { newBroll } = h.load("broll.ts");
+  const shot = newBroll({ ...h.usePlan(id).plan, supporting: [asset] }, asset, 1);
+  h.actions.override(id, { supporting: [asset], broll: [shot] });
+  h.actions.override(id, { brollDisabled: [shot.id] });
+  assert.equal(h.usePlan(id).plan.broll.length, 0);
+  h.actions.undo(id);
+  assert.equal(h.usePlan(id).plan.broll[0].assetId, "detail");
+  h.actions.redo(id);
+  h.actions.undo(id);
+  h.flush();
+  const restored = harness({}, h.storage, { "./mock": {} });
+  const preview = restored.usePlan(id).plan;
+  assert.equal(preview.broll[0].start, 1);
+  assert.equal(preview.broll[0].clipId, "a");
+  let body;
+  restored.context.fetch = async (_url, options) => { body = JSON.parse(options.body); return new Response('event: ready\ndata: {"url":"/real-export.mp4"}\n\n'); };
+  for await (const event of restored.load("api.ts").exportVideo(id, { editPlan: preview })) void event;
+  assert.deepEqual(body.editPlan.broll, JSON.parse(JSON.stringify(preview.broll)));
+  assert.deepEqual(body.editPlan.supporting, JSON.parse(JSON.stringify(preview.supporting)));
+});
+
+test("manual placement recomputes narration anchors and rejects unsupported ranges and asset IDs", () => {
+  const h = harness();
+  const { newBroll, reviseBroll } = h.load("broll.ts");
+  const p = { ...plan("anchored"), supporting: [supportingFixture()] };
+  const shot = newBroll(p, p.supporting[0], 1);
+  const moved = reviseBroll(p, shot, { start: 6, end: 8 });
+  assert.equal(moved.clipId, "b");
+  assert.equal(moved.segmentIndex, 1);
+  assert.equal(moved.atSrcTime, 6);
+  assert.throws(() => reviseBroll(p, shot, { assetId: "not-attached" }), /attached/);
+  assert.throws(() => reviseBroll(p, shot, { start: 4, end: 6 }), /narration cut/);
+  assert.throws(() => reviseBroll(p, shot, { srcStart: 4 }), /exceeds|sampled/);
+  assert.throws(() => reviseBroll({ ...p, broll: [{ ...shot, id: "other" }] }, shot, {}), /overlap/);
+});
+
+test("saving uses the server revision, preserves newer local edits and keeps undo history", async () => {
+  const gate = deferred();
+  let sent;
+  const h = harness({ getPlan: async (id) => ({ editPlan: plan(id), revision: 4, updatedAt: 100 }), savePlan: async (id, revision, editPlan) => { sent = { id, revision, editPlan }; await gate.promise; return { editPlan, revision: 5, updatedAt: 200 }; } });
+  const id = await h.actions.generate();
+  h.actions.override(id, { hookText: "First edit" });
+  const saving = h.actions.savePlan(id);
+  await tick();
+  h.actions.override(id, { hookText: "Changed while saving" });
+  gate.resolve();
+  await saving;
+  const entry = h.getState().plans[id];
+  assert.equal(sent.revision, 4);
+  assert.equal(sent.editPlan.hookText, "First edit");
+  assert.equal(entry.savedPlan.hookText, "First edit");
+  assert.equal(h.usePlan(id).plan.hookText, "Changed while saving");
+  assert.equal(entry.revision, 5);
+  assert.equal(entry.past.length, 2);
+  h.actions.undo(id);
+  assert.equal(h.usePlan(id).plan.hookText, "First edit");
+});
+
+test("save conflicts preserve the local draft and reloading the server version is undoable", async () => {
+  const h = harness({ getPlan: async (id) => ({ editPlan: { ...plan(id), hookText: "Elsewhere" }, revision: 2, updatedAt: 200 }), savePlan: async () => { throw new Error("Must not overwrite a newer remote edit"); } });
+  const id = await h.actions.generate();
+  h.actions.override(id, { hookText: "My local draft" });
+  await h.actions.savePlan(id);
+  assert.equal(h.getState().plans[id].save.status, "conflict");
+  assert.equal(h.usePlan(id).plan.hookText, "My local draft");
+  await h.actions.reloadSavedPlan(id);
+  assert.equal(h.usePlan(id).plan.hookText, "Elsewhere");
+  h.actions.undo(id);
+  assert.equal(h.usePlan(id).plan.hookText, "My local draft");
+});
+
+test("export reviews match only the same saved preview and transformed render settings", () => {
+  const h = harness();
+  const { exportPreview, reviewMatches } = h.load("export-plan.ts");
+  const p = plan("reviewed");
+  const output = exportPreview(p, "720p", false);
+  assert.equal(output.width, 720);
+  assert.equal(output.height, 1280);
+  assert.equal(output.captions.enabled, false);
+  assert.equal(p.captions.enabled, true);
+  const record = { submittedFingerprint: "same-preview", submittedInputFingerprint: "same-preview", renderedPlanFingerprint: "actual-render", requestedSettings: { resolution: "720p", burnCaptions: false }, settings: { resolution: "720p", burnCaptions: false }, review: { planFingerprint: "actual-render" } };
+  assert.equal(reviewMatches(record, "same-preview", false, false), true);
+  assert.equal(reviewMatches(record, "changed-preview", false, false), false);
+  assert.equal(reviewMatches(record, "same-preview", true, false), false);
+  assert.equal(reviewMatches(record, "same-preview", false, true), false);
+  assert.equal(reviewMatches({ ...record, review: { planFingerprint: "other-resolution" } }, "same-preview", false, false), false);
+  assert.equal(reviewMatches({ ...record, settings: { resolution: "1080p", burnCaptions: false } }, "same-preview", false, false), false);
+  assert.equal(reviewMatches({ ...record, submittedInputFingerprint: "other-request" }, "same-preview", false, false), false);
+});
+
+test("legacy or inaccessible server plans preserve local drafts and show actionable recovery", async () => {
+  const h = harness({ getPlan: async () => { const error = new Error("Not found"); error.status = 404; throw error; } });
+  const id = await h.actions.generate();
+  h.actions.override(id, { hookText: "Recoverable draft" });
+  await h.actions.ensurePlan(id);
+  assert.equal(h.getState().planAccess[id], "error");
+  assert.match(h.getState().planErrors[id], /local draft is preserved/);
+  assert.equal(h.usePlan(id).plan.hookText, "Recoverable draft");
+});
+
+test("reconnection uses durable revisions and disconnect never completes a pending export", () => {
+  const h = harness();
+  const { reconcileJob, hasJobOutput } = h.load("jobs.ts");
+  const pending = { id: "owned-job", state: "running", revision: 3, progress: { fraction: 0.4, stage: "Rendering" }, output: null };
+  assert.equal(hasJobOutput(pending), false);
+  assert.equal(reconcileJob(pending, { ...pending, revision: 2, progress: { fraction: 0.1, stage: "Queued" } }), pending);
+  const restored = reconcileJob(pending, { ...pending, revision: 5, state: "succeeded", output: { kind: "video", id: "owned-output" } });
+  assert.equal(hasJobOutput(restored), true);
+  assert.equal(hasJobOutput({ ...restored, output: null }), false);
+  assert.equal(hasJobOutput({ ...pending, cancelRequestedAt: 100 }), false);
+  assert.equal(reconcileJob(restored, { ...pending, revision: 6 }), restored);
+  assert.throws(() => reconcileJob(pending, { ...pending, id: "different-project" }), /different operation/);
+});
+
+test("job watcher reconnects from snapshots without enqueueing or completing a disconnected render", async () => {
+  const h = harness({}, new Map(), { "./mock": {} });
+  const requests = [];
+  const running = { id: "job-one", state: "running", revision: 3, progress: { fraction: 0.3, stage: "Rendering" }, output: null };
+  h.context.fetch = async (url, options) => {
+    requests.push({ url, method: options?.method ?? "GET" });
+    return url.includes("/events") ? new Response(`id: 4\nevent: job\ndata: ${JSON.stringify({ ...running, revision: 4 })}\n\n`) : Response.json({ job: running });
+  };
+  const api = h.load("api.ts");
+  const seen = [];
+  await assert.rejects(async () => { for await (const job of api.watchJob("job-one", 2, new AbortController().signal)) seen.push(job); }, /disconnected/);
+  assert.equal(seen.at(-1).state, "running");
+  assert.equal(seen.at(-1).revision, 4);
+  assert.ok(requests.every((r) => r.method === "GET"));
+  assert.match(requests[1].url, /after=3/);
+  h.context.fetch = async () => Response.json({ job: { ...running, revision: 8, state: "succeeded", output: { kind: "video", id: "result-one" } } });
+  const resumed = [];
+  for await (const job of api.watchJob("job-one", 4, new AbortController().signal)) resumed.push(job);
+  assert.equal(resumed.length, 1);
+  assert.equal(resumed[0].state, "succeeded");
+  h.context.fetch = async () => Response.json({});
+  await assert.rejects(api.getExportResult("job-one"), /no downloadable video/);
+});
+
+test("durable export associations persist only job references and do not clear a newer job", () => {
+  const h = harness();
+  const association = { jobId: "first", cursor: 3, submittedFingerprint: "preview", requestedSettings: { resolution: "720p", burnCaptions: true } };
+  h.actions.trackExportJob("edit", association);
+  h.flush();
+  const restored = harness({}, h.storage);
+  assert.equal(restored.getState().exportJobs.edit.jobId, "first");
+  assert.equal(restored.getState().reviews.edit, undefined);
+  restored.actions.trackExportJob("edit", { ...association, jobId: "next", cursor: 1 });
+  restored.actions.clearExportJob("edit", "first");
+  assert.equal(restored.getState().exportJobs.edit.jobId, "next");
+});
+
+test("undo across a remix restores the server revision belonging to that saved plan", async () => {
+  const saved = new Map();
+  const h = harness({
+    getPlan: async (id) => saved.get(id) ?? { editPlan: plan(id), revision: 1, updatedAt: 10 },
+    savePlan: async (id, revision, editPlan) => { const result = { editPlan, revision: revision + 1, updatedAt: 20 }; saved.set(id, result); return result; },
+    async *remix() { yield { type: "plan", editPlan: plan("remixed-plan"), stats }; },
+  });
+  const id = await h.actions.generate();
+  h.actions.override(id, { hookText: "Saved before remix" });
+  await h.actions.savePlan(id);
+  assert.equal(h.getState().plans[id].revision, 2);
+  await h.actions.remix(id, "Change the pacing");
+  assert.equal(h.getState().plans[id].serverId, "remixed-plan");
+  assert.equal(h.getState().plans[id].revision, undefined);
+  h.actions.undo(id);
+  assert.equal(h.getState().plans[id].serverId, id);
+  assert.equal(h.getState().plans[id].revision, 2);
+  assert.equal(h.usePlan(id).plan.hookText, "Saved before remix");
+  h.actions.redo(id);
+  await h.actions.savePlan(id);
+  assert.equal(h.getState().plans[id].serverId, "remixed-plan");
+  assert.equal(h.getState().plans[id].revision, 2);
+});
+
+test("remix receives the effective unsaved preview and keeps it while the response is pending", async () => {
+  const gate = deferred();
+  let request;
+  const h = harness({ async *remix(args) { request = args; await gate.promise; yield { type: "plan", editPlan: plan("accepted-remix"), stats }; } });
+  const id = await h.actions.generate();
+  const asset = supportingFixture();
+  const shot = h.load("broll.ts").newBroll({ ...h.usePlan(id).plan, supporting: [asset] }, asset, 1);
+  const design = { typeface: "serif", fontScale: 0.8, weight: "regular", textColor: "#FFFFFF", highlightMode: "none", animation: "none", outline: false };
+  h.actions.override(id, { supporting: [asset], broll: [shot], captionDesign: design, hookText: "Manual context" });
+  const before = h.usePlan(id).plan;
+  const pending = h.actions.remix(id, "Keep this context and tighten the opening");
+  await tick();
+  assert.equal(request.editPlan.hookText, "Manual context");
+  assert.equal(request.editPlan.broll[0].assetId, "detail");
+  assert.equal(request.editPlan.captions.design.typeface, "serif");
+  assert.equal(h.usePlan(id).plan, before);
+  gate.resolve(); await pending;
+  h.actions.undo(id);
+  assert.equal(h.usePlan(id).plan.broll[0].id, shot.id);
+});
+
+test("preview readiness waits for a decoded paused seek and reports real media failures", () => {
+  const h = harness();
+  const { previewReadiness } = h.load("preview-readiness.ts");
+  const decoded = { readyState: 4, seeking: false, error: null };
+  assert.equal(previewReadiness([]), "loading");
+  assert.equal(previewReadiness([decoded, { readyState: 1, seeking: true, error: null }]), "loading");
+  assert.equal(previewReadiness([{ ...decoded, seeking: true }]), "loading");
+  assert.equal(previewReadiness([decoded, { ...decoded, readyState: 2 }]), "ready");
+  assert.equal(previewReadiness([decoded, { ...decoded, error: { code: 4 } }]), "error");
 });
