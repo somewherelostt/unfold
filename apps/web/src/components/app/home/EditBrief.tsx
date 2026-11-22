@@ -26,10 +26,10 @@ export function EditBrief({ defaultText, defaultStyle, defaultAspect, disabled, 
     try { await onSubmit({ prompt: text.trim(), style, aspect, file: null }); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Couldn't start this edit. Please try again."); }
   }
-  return <form onSubmit={(event) => void submit(event)} className="space-y-4">
+  return <form onSubmit={(event) => void submit(event)} className="uf-edit-brief">
     <div>
-      <label htmlFor="edit-brief" className="mb-2 block text-[13px] font-medium text-text-2">What do you have in mind?</label>
-      <textarea id="edit-brief" rows={4} value={text} onChange={(event) => update(event.target.value)} placeholder="Keep the best moments, preserve my voice, add clean captions…" className="uf-field w-full resize-y" />
+      <label htmlFor="edit-brief" className="mb-2 block text-[13px] font-medium text-text-2">Direction <span className="font-normal text-text-3">· optional</span></label>
+      <textarea id="edit-brief" rows={3} value={text} onChange={(event) => update(event.target.value)} placeholder="Keep the best moments, preserve my voice, add clean captions…" className="uf-field w-full resize-y" />
       <p className="mt-2 text-[12px] leading-5 text-text-3">Leave this blank for an edit shaped around your footage.</p>
     </div>
     <div className="flex flex-wrap gap-2" aria-label="Brief examples">{EXAMPLES.map((example) => <button type="button" key={example.label} className="uf-example-chip" onClick={() => update(example.prompt)}>{example.label}</button>)}</div>

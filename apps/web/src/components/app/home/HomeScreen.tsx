@@ -78,31 +78,29 @@ export function HomeScreen() {
   return (
     <div className="flex min-h-dvh flex-col">
       <AppHeader />
-      <main className="uf-page">
-        <header className="uf-page-heading">
-          <div><p className="uf-kicker">Your workspace</p><h1>Your next edit starts <em>here.</em></h1>
-          <p className="uf-page-description">Upload your footage. Unfold shapes the pacing and captions around your story.</p></div>
-          {running && <Link href="/app/new" className="uf-text-link">View edit in progress <IconArrowRight /></Link>}
-        </header>
-        <div className="uf-create-grid">
-          <section className="uf-card" aria-labelledby="source-heading">
-            <div className="uf-card-heading"><span className="uf-step">01</span><h2 id="source-heading">Your footage</h2><span className="uf-meta">Start here</span></div>
-            <SourceUpload onAttach={attach} disabled={running || recovering} />
-            {project.videoId && <div className="mt-5 border-t border-hairline pt-5"><SupportingAssets primaryVideoId={project.videoId} /></div>}
+      <main className="uf-page uf-home-page">
+        <div className="uf-home-workspace">
+          <section className="uf-create-panel" aria-label="Create an edit">
+            <header className="uf-create-header"><h1>Create an edit</h1><p>Start with your footage. Make it yours.</p>{running && <Link href="/app/new" className="uf-text-link">View edit in progress <IconArrowRight /></Link>}</header>
+            <section className="uf-create-source" aria-labelledby="source-heading">
+              <div className="uf-card-heading"><h2 id="source-heading">Your footage</h2><span className="uf-meta">Required</span></div>
+              <SourceUpload onAttach={attach} disabled={running || recovering} />
+              {project.videoId && <div className="mt-4 border-t border-hairline pt-4"><SupportingAssets primaryVideoId={project.videoId} /></div>}
+            </section>
+            <section className="uf-create-brief" aria-labelledby="brief-heading">
+              <h2 id="brief-heading" className="sr-only">Edit direction</h2>
+              <EditBrief defaultText={params.get("prompt") ?? project.prompt} defaultStyle={params.get("style") ?? project.promptStyle ?? "Auto"} defaultAspect={params.get("aspect") ?? project.aspect}
+                busy={project.analyzing || recovering} hasClip={!!project.videoId} disabled={running || recovering || project.analyzing || !project.videoId || !!draftError} onSubmit={start} />
+              {recovering && <p role="status" className="uf-status-card mt-3">Recovering your attached clip…</p>}
+              {draftError && <div role="alert" className="uf-status-card mt-3" data-tone="error"><p>{draftError}</p><Button size="sm" variant="secondary" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
+              <Inspiration />
+            </section>
           </section>
-          <section className="uf-card" aria-labelledby="brief-heading">
-            <div className="uf-card-heading"><span className="uf-step">02</span><h2 id="brief-heading">Give it a direction</h2><span className="uf-meta">Optional</span></div>
-            <EditBrief defaultText={params.get("prompt") ?? project.prompt} defaultStyle={params.get("style") ?? project.promptStyle ?? "Auto"} defaultAspect={params.get("aspect") ?? project.aspect}
-              busy={project.analyzing || recovering} hasClip={!!project.videoId} disabled={running || recovering || project.analyzing || !project.videoId || !!draftError} onSubmit={start} />
-            {recovering && <p role="status" className="uf-status-card mt-3">Recovering your attached clip…</p>}
-            {draftError && <div role="alert" className="uf-status-card mt-3" data-tone="error"><p>{draftError}</p><Button size="sm" variant="secondary" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
-            <Inspiration />
+          <section className="uf-library" aria-labelledby="recent-heading">
+            <div className="uf-section-heading"><div><p className="uf-kicker">Your workspace</p><h2 id="recent-heading">Recent edits</h2><p>Pick up where you left off.</p></div>{recent.length > 0 && <span className="uf-count">{recent.length} {recent.length === 1 ? "edit" : "edits"}</span>}</div>
+            {recent.length > 0 ? <div className="uf-edit-grid">{recent.map(([id, entry]) => <RecentCard key={id} id={id} entry={entry} />)}</div> : <div className="uf-library-empty"><div><IconMedia size={28} /><h3>Your work belongs here.</h3><p>Upload a clip to create your first edit. Preview it, refine the details and export when you’re ready.</p></div></div>}
           </section>
         </div>
-        <section className="uf-library" aria-labelledby="recent-heading">
-          <div className="uf-section-heading"><div><h2 id="recent-heading">Your edits</h2><p>Pick up where you left off.</p></div>{recent.length > 0 && <span className="uf-meta">{recent.length} {recent.length === 1 ? "edit" : "edits"}</span>}</div>
-          {recent.length > 0 ? <div className="uf-edit-grid">{recent.map(([id, entry]) => <RecentCard key={id} id={id} entry={entry} />)}</div> : <div className="uf-library-empty"><div><IconMedia size={24} /><h3>Your first edit belongs here.</h3><p>Upload your footage above. Your saved edits will appear here.</p></div></div>}
-        </section>
       </main>
     </div>
   );
