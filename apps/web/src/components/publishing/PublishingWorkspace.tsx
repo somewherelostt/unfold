@@ -68,7 +68,7 @@ export function PublishingWorkspace() {
         </>}
       </>}
     </main>
-    {composer && data && <Composer data={data} existing={composer === "new" ? null : composer} onClose={() => setComposer(null)} onConnections={() => { setComposer(null); setTab("connections"); }} onSaved={(p) => { setComposer(null); setNotice(p.destinations.every((d) => d.state === "draft") ? "Draft saved." : p.schedule.mode === "scheduled" ? `Scheduled for ${dateTime(p.schedule.at, p.schedule.timeZone)} · ${p.schedule.timeZone}. Each destination will report its own result.` : "Queued for publishing. Each destination will report its own result."); void refresh(); }} />}
+    {composer && data && <Composer data={data} existing={composer === "new" ? null : composer} onClose={() => setComposer(null)} onConnections={() => { setComposer(null); setTab("connections"); }} onSaved={(p) => { setComposer(null); setTab("schedule"); setFilter("all"); setDay(null); setNotice(p.destinations.every((d) => d.state === "draft") ? "Draft saved." : p.schedule.mode === "scheduled" ? `Scheduled for ${dateTime(p.schedule.at, p.schedule.timeZone)} · ${p.schedule.timeZone}. Each destination will report its own result.` : "Queued for publishing. Each destination will report its own result."); void refresh(); }} />}
     {confirm && <Modal title={confirm.title} onClose={() => setConfirm(null)}><div className="uf-publish-confirm"><p>{confirm.text}</p><div className="uf-publish-actions"><Button onClick={() => setConfirm(null)}>Keep it</Button><Button variant="primary" onClick={() => { const action = confirm.action; setConfirm(null); void action(); }}>Confirm</Button></div></div></Modal>}
   </div>;
 }

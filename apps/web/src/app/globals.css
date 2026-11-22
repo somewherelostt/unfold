@@ -62,7 +62,11 @@
   --ease-unfold: var(--ease);
 }
 
-html { background: var(--bg); }
+html {
+  background: var(--bg);
+  /* Keep centred layouts still when content starts or stops needing a scrollbar. */
+  scrollbar-gutter: stable;
+}
 body {
   background: var(--bg);
   color: var(--text-1);
