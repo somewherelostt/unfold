@@ -9,6 +9,8 @@ import {
 import type { EditPlan, MediaAnalysis } from "@unfold/core";
 import type { RenderedQualityReview } from "../../../../packages/video/src/quality.ts";
 import { PrivateStorage, StorageError, type Owner } from "./private-storage.ts";
+import { createPrivateStorage } from "./storage-factory.ts";
+import { isSupabaseStorage } from "./supabase-storage.ts";
 
 export type RenderSnapshot = {
   version: 1; kind: "render"; clientFingerprint: string; planFingerprint: string;
@@ -33,7 +35,7 @@ function canonical(value: unknown): unknown {
   return value;
 }
 export const contentFingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
-export function applicationStorage(config: RuntimeConfig, dataDir = process.env.UNFOLD_DATA_DIR ?? path.join(config.repoRoot, "data")) { return new PrivateStorage(path.join(dataDir, "private-v1")); }
+export function applicationStorage(config: RuntimeConfig, dataDir = process.env.UNFOLD_DATA_DIR ?? path.join(config.repoRoot, "data")) { return createPrivateStorage(path.join(dataDir, "private-v1")); }
 
 export async function atomicJobFile(file: string, value: unknown) {
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
@@ -60,6 +62,7 @@ async function syncTree(directory: string): Promise<void> {
   await syncPath(directory);
 }
 export async function ownedAnalysis(storage: PrivateStorage, owner: Owner, videoId: string): Promise<MediaAnalysis | null> {
+  if (isSupabaseStorage(storage)) return storage.analysis<MediaAnalysis>(owner, videoId);
   const { asset, mediaDir } = await storage.assetPaths(owner, videoId);
   if (asset.status !== "analyzed") return null;
   const value = JSON.parse(await readFile(path.join(mediaDir, asset.assetId, "analysis.json"), "utf8")) as MediaAnalysis;
@@ -69,15 +72,17 @@ export async function ownedAnalysis(storage: PrivateStorage, owner: Owner, video
 export async function readJobResult(storage: PrivateStorage, owner: Owner, projectId: string, job: JobView): Promise<AnalysisPayload | ReadyPayload> {
   if (job.state !== "succeeded" || !job.output) throw new JobFault("RESULT_NOT_READY", "The job has not succeeded.", 409);
   if (job.output.id !== job.id || job.output.kind !== (job.kind === "analysis" ? "analysis" : "video")) throw new JobFault("INVALID_RESULT", "Job output is unavailable.", 409);
-  const file = await storage.mediaPath(owner, [projectId, "exports", `${job.id}.json`]);
-  const manifest = JSON.parse(await readFile(file, "utf8")) as ResultManifest;
+  const parts = [projectId, "exports", `${job.id}.json`];
+  const raw = isSupabaseStorage(storage) ? Buffer.from(await storage.mediaBytes(owner, parts)) : await readFile(await storage.mediaPath(owner, parts));
+  const manifest = JSON.parse(raw.toString('utf8')) as ResultManifest;
   if (manifest.version !== 1 || manifest.jobId !== job.id || manifest.projectId !== projectId || manifest.kind !== job.kind) throw new JobFault("INVALID_RESULT", "Job output is unavailable.", 409);
   if (job.kind === "render") {
     const ready = manifest.value as ReadyPayload;
     if (!ready || typeof ready.url !== "string") throw new JobFault("INVALID_RESULT", "Job output is unavailable.", 409);
     for (const url of [ready.url, ready.reviewUrl, ready.contactSheetUrl].filter((v): v is string => Boolean(v))) {
       if (!url.startsWith(`/media/${projectId}/exports/`) || url.includes("?") || url.includes("#")) throw new JobFault("INVALID_RESULT", "Job output is unavailable.", 409);
-      await storage.mediaPath(owner, url.slice(7).split("/"));
+      if (isSupabaseStorage(storage)) await storage.entryForMedia(owner, url.slice(7).split('/'));
+      else await storage.mediaPath(owner, url.slice(7).split("/"));
     }
   }
   return manifest.value;
@@ -120,6 +125,7 @@ export function createApplicationHandlers(config: RuntimeConfig, options: Applic
   const publishResult = async (ctx: HandlerContext, owner: Owner, value: AnalysisPayload | ReadyPayload) => {
     ctx.signal.throwIfAborted(); await storage.getProject(owner, ctx.projectId);
     const filename = `${ctx.job.id}.json`;
+    if (ctx.job.kind !== 'analysis' && ctx.job.kind !== 'render') throw new JobFault('INVALID_RESULT','Invalid media job result.');
     const manifest: ResultManifest = { version: 1, jobId: ctx.job.id, projectId: ctx.projectId, kind: ctx.job.kind, value };
     await atomicJobFile(path.join(storage.projectDir(ctx.projectId), "media/exports", filename), manifest);
     await storage.registerReference(owner, ctx.projectId, "exports", filename);
@@ -171,11 +177,23 @@ export function createApplicationHandlers(config: RuntimeConfig, options: Applic
       }
       const access = await storage.createRenderAccess(owner, ctx.projectId, privatePaths, Math.min(30 * 60_000, config.limits.maxRuntimeMs + 60_000));
       try {
-        const decorate = (src: string) => { const url = new URL(src, origin); url.searchParams.set("render", access.token); return url.href; };
-        const renderClone = { ...plan, source: { ...plan.source, src: decorate(plan.source.src) }, supporting: plan.supporting?.map((asset) => ({ ...asset, src: decorate(asset.src) })) };
+        const cloud = isSupabaseStorage(storage);
+        const decorate = async (src: string) => {
+          if (isSupabaseStorage(storage)) {
+            const entry = await storage.entryForMedia(owner, src.slice(7).split('/'));
+            return storage.blobs.signedRead(entry.object_key, Math.min(1800, Math.ceil(config.limits.maxRuntimeMs/1000)+60));
+          }
+          const url = new URL(src, origin); url.searchParams.set("render", access.token); return url.href;
+        };
+        const audio = (url: string) => cloud ? `${process.env.UNFOLD_LIBRARY_URL}/${url.slice('/assets/'.length)}` : url;
+        // This attempt-only clone never enters the saved plan or result receipt. Cloud
+        // rendering reads exact private capabilities directly, without relying on web SSO.
+        const renderClone = { ...plan, source: { ...plan.source, src: await decorate(plan.source.src) },
+          supporting: plan.supporting ? await Promise.all(plan.supporting.map(async asset => ({...asset,src:await decorate(asset.src)}))) : undefined,
+          music: plan.music ? {...plan.music,url:audio(plan.music.url)} : null, sfx:plan.sfx.map(sound=>({...sound,url:audio(sound.url)})) };
         const outputPath = path.join(ctx.workspace, "export.mp4"), reviewDir = path.join(ctx.workspace, "review");
         const result = await executeChild(ctx, { kind: "render", repoRoot: config.repoRoot, plan: renderClone, outputPath,
-          options: { publicDir: config.publicDir, assetBase: origin.origin, entryPoint: path.join(config.repoRoot, "packages/video/src/entry.ts"), browserExecutable: config.browserExecutable, concurrency: 2 },
+          options: { publicDir: config.publicDir, assetBase: origin.origin, entryPoint: path.join(config.repoRoot, "packages/video/src/entry.ts"), browserExecutable: config.browserExecutable, concurrency: isSupabaseStorage(storage) ? 1 : 2 },
           review: { plan, assets: resolved, options: { reviewDir, publicDir: config.publicDir, analysis: snapshot.analysis, maxSeconds: 120, ffmpegExecutable: config.ffmpeg, ffprobeExecutable: config.ffprobe } } });
         ctx.signal.throwIfAborted(); ctx.progress({ fraction: 0.99, stage: "saving" });
         const outDir = path.join(storage.projectDir(ctx.projectId), "media/exports"); await mkdir(outDir, { recursive: true, mode: 0o700 });
@@ -183,6 +201,11 @@ export function createApplicationHandlers(config: RuntimeConfig, options: Applic
         if (!(await stat(outputPath)).isFile() || (await stat(outputPath)).size < 1) throw new HandlerFailure("OUTPUT_MISSING", "The renderer did not produce an export.");
         await durableCopy(outputPath, path.join(outDir, filename));
         await storage.registerReference(owner, ctx.projectId, "exports", filename);
+        if (isSupabaseStorage(storage)) {
+          const { resolveCompletedExport } = await import('./publishing/exports.ts');
+          const verified = await resolveCompletedExport(storage, owner, {projectId:ctx.projectId,fileKey:filename}, config.ffprobe);
+          await storage.recordExportProperties(owner,ctx.projectId,filename,verified.mediaContentSha256,verified.properties);
+        }
         const ready: ReadyPayload = { url: `/media/${ctx.projectId}/exports/${filename}`, submittedInputFingerprint: snapshot.submittedInputFingerprint, renderedPlanFingerprint: snapshot.renderedPlanFingerprint, settings: snapshot.settings };
         try {
           const review = result.review as RenderedQualityReview | undefined;

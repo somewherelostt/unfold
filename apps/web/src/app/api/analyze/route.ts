@@ -9,6 +9,7 @@ const inflight = new Map<string, { language: string; promise: Promise<unknown> }
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") return Response.json({error:"Use the background workflow to continue."},{status:409});
   try {
     const { videoId, language: requestedLanguage } = await req.json().catch(() => ({})) as { videoId?: string; language?: unknown };
     if (typeof videoId !== "string") throw new StorageError(400, "videoId is required.");

@@ -20,6 +20,7 @@ import { serviceErrorFields } from "./errors";
 
 export const MOCK = process.env.NEXT_PUBLIC_UNFOLD_API === "mock";
 export const DURABLE_JOBS = process.env.NEXT_PUBLIC_UNFOLD_JOBS === "1";
+const CLOUD = process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function json<T>(res: Response): Promise<T> {
@@ -76,6 +77,7 @@ export async function uploadVideo(file: File, signal?: AbortSignal): Promise<{ v
     await sleep(250);
     return { videoId: mockRegisterUpload(file) };
   }
+  if (CLOUD) return (await import('./cloud-upload')).uploadCloudVideo(file,{role:'primary',signal});
   const fd = new FormData();
   fd.append("file", file);
   return json(await fetch("/api/upload", { method: "POST", body: fd, signal }));
@@ -85,6 +87,7 @@ export async function uploadVideo(file: File, signal?: AbortSignal): Promise<{ v
 export async function uploadSupporting(primaryVideoId: string, file: File, description: string, signal: AbortSignal, progress: (value: number) => void): Promise<{ videoId: string }> {
   signal.throwIfAborted();
   if (MOCK) return uploadVideo(file, signal);
+  if (CLOUD) return (await import('./cloud-upload')).uploadCloudVideo(file,{role:'supporting',projectId:primaryVideoId,description,signal,progress});
   const fd = new FormData();
   fd.append("file", file);
   fd.append("role", "supporting");
@@ -132,6 +135,15 @@ export async function analyze(videoId: string, signal?: AbortSignal): Promise<Me
     await sleep(150);
     return mockAnalysis(videoId);
   }
+  if (CLOUD) {
+    const {job}=await json<{job:JobView}>(await post('/api/jobs',{kind:'analysis',videoId,idempotencyKey:'analysis-'+crypto.randomUUID()},signal));
+    let current=job;
+    while(!['succeeded','failed','cancelled'].includes(current.state)){
+      signal?.throwIfAborted();await sleep(1000);current=await getJob(job.id,signal);
+    }
+    if(current.state!=='succeeded')throw new Error(current.error?.message??'The video could not be analyzed.');
+    return (await json<{analysis:MediaAnalysis}>(await fetch(`/api/jobs/${encodeURIComponent(job.id)}/result`,{signal}))).analysis;
+  }
   return (await json<{ analysis: MediaAnalysis }>(await post("/api/analyze", { videoId }, signal))).analysis;
 }
 
@@ -154,6 +166,14 @@ export async function reference(input: { url: string } | { file: File }, primary
     await sleep(900);
     return { styleId: "mock-style", profile: null as never, title: "url" in input ? input.url : input.file.name };
   }
+  if(CLOUD){
+    const taskInput='file' in input?{primaryVideoId,assetId:(await (await import('./cloud-upload')).uploadCloudVideo(input.file,{role:'reference',projectId:primaryVideoId,signal})).videoId}:{primaryVideoId,url:input.url};
+    for await(const event of (await import('./cloud-tasks')).cloudTask<{type:string}&ReferenceResult&{message?:string}>('reference',taskInput,signal)){
+      if(event.type==='reference')return event;
+      if(event.type==='error')throw new Error(event.message??'This reference could not be analyzed.');
+    }
+    throw new Error('Reference analysis ended before returning a style.');
+  }
   if ("file" in input) {
     const fd = new FormData();
     fd.append("file", input.file);
@@ -165,6 +185,7 @@ export async function reference(input: { url: string } | { file: File }, primary
 
 export async function* generateVariants(req: GenerateRequest, signal?: AbortSignal): AsyncGenerator<VariantsEvent> {
   if (!MOCK) {
+    if(CLOUD){yield* (await import('./cloud-tasks')).cloudTask<VariantsEvent>('generation',req,signal);return;}
     yield* sse<VariantsEvent>(await post("/api/variants", req, signal));
     return;
   }
@@ -192,6 +213,7 @@ export async function* generateVariants(req: GenerateRequest, signal?: AbortSign
 
 export async function* remix(args: { planId: string; message: string; editPlan?: EditPlan }, signal?: AbortSignal): AsyncGenerator<RemixEvent> {
   if (!MOCK) {
+    if(CLOUD){yield* (await import('./cloud-tasks')).cloudTask<RemixEvent>('remix',args,signal);return;}
     yield* sse<RemixEvent>(await post("/api/remix", args, signal));
     return;
   }
@@ -232,6 +254,10 @@ export async function* watchJob(id: string, cursor: number, signal: AbortSignal)
   if (current.id !== id) throw new Error("The server returned a different job.");
   yield current;
   if (["succeeded", "failed", "cancelled"].includes(current.state)) return;
+  if(CLOUD){
+    while(!signal.aborted){await sleep(1000);current=reconcileJob(current,await getJob(id,signal));yield current;if(['succeeded','failed','cancelled'].includes(current.state))return;}
+    signal.throwIfAborted();return;
+  }
   for await (const event of sse<JobView & { type: "job" }>(await fetch(`/api/jobs/${encodeURIComponent(id)}/events?after=${Math.max(cursor, current.revision)}`, { signal }))) {
     if (event.type !== "job") continue;
     current = reconcileJob(current, event);

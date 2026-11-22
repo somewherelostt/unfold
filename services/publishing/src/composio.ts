@@ -108,7 +108,7 @@ export class ComposioClient {
     return { toolkitExists: true, tools: (Array.isArray(result.items) ? result.items : []).map(object).map((t) => ({ slug: String(t.slug), version: String(t.version), inputKeys: Object.keys(schemaFields(t.input_parameters)) })) };
   }
   /** Explicit staging of an already owner-verified export. No arbitrary paths are accepted by the HTTP API. */
-  async stageInstagramVideo(absolutePath: string, filename: string, onPrepared: (id: string) => void) {
+  async stageInstagramVideo(absolutePath: string, filename: string, onPrepared: (id: string) => void | Promise<void>) {
     if (!/^[A-Za-z0-9_-]{1,100}\.mp4$/.test(filename)) throw new PublishingError("INVALID_FILE", "Invalid video upload reference.");
     const before = await stat(absolutePath); if (!before.isFile() || before.size < 1 || before.size > 300_000_000) throw new PublishingError("INVALID_FILE", "Choose a completed MP4 of up to 300 MB.");
     const md5 = createHash("md5"); for await (const chunk of createReadStream(absolutePath)) md5.update(chunk);
@@ -116,7 +116,7 @@ export class ComposioClient {
     const result = await this.request("/files/upload/request", "POST", { toolkit_slug: "instagram", tool_slug: "INSTAGRAM_POST_IG_USER_MEDIA", filename, mimetype: "video/mp4", md5: md5.digest("hex") }, true);
     if (typeof result.id !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(result.id) || typeof result.key !== "string" || !result.key || result.key.length > 4096 || /[\x00-\x1f]/.test(result.key) || typeof result.new_presigned_url !== "string") throw new ProviderFault("UPLOAD_UNCONFIRMED", "The video upload reference could not be confirmed.", "ambiguous");
     // Record the accepted file allocation even when the subsequent upload-origin check fails.
-    onPrepared(result.id);
+    await onPrepared(result.id);
     let url: URL; try { url = new URL(result.new_presigned_url); } catch { throw new PublishingError("UPLOAD_UNAVAILABLE", "The video upload destination could not be verified.", 502); }
     const aws = url.hostname === "s3.amazonaws.com" || /^s3[.-][a-z0-9-]+\.amazonaws\.com$/.test(url.hostname) || /^[a-z0-9][a-z0-9.-]*\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname);
     // The authenticated Files API also returns Cloudflare R2's documented S3-compatible endpoint.

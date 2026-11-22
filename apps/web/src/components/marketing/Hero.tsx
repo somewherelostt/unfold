@@ -9,6 +9,7 @@ import { Caption } from "./Caption";
 import { useMotionScope, useScrolled, useTicker } from "./hooks";
 import { PreviewCard, PreviewVideo } from "./Preview";
 import { CLIPS, type Clip } from "./showcase-clips";
+import { VisitorBadge } from "./VisitorBadge";
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
@@ -141,6 +142,7 @@ export function Hero() {
           Turn your raw clip into a finished edit with captions, beat-synced music, transitions and sound effects.
         </p>
         <PromptShell className="mk-prompt-shell mt-10 max-w-[640px]" briefs={BRIEFS} />
+        <VisitorBadge />
       </div>
       <div className="mk-ruler pointer-events-none absolute inset-x-0 bottom-0" aria-hidden />
     </section>

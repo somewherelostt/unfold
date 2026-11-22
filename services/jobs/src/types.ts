@@ -1,9 +1,9 @@
 /** Identity comes from authenticated, project-authorized server context, never a request body. */
 export type JobContext = Readonly<{ ownerId: string; projectId: string }>;
-export type JobKind = "analysis" | "render";
+export type JobKind = "analysis" | "render" | "generation" | "remix" | "reference";
 export type JobState = "pending" | "running" | "succeeded" | "failed" | "cancelled";
-export type InputReference = { kind: "upload" | "plan"; id: string; revision?: string };
-export type OutputReference = { kind: "analysis" | "video"; id: string; revision?: string };
+export type InputReference = { kind: "upload" | "plan" | "snapshot"; id: string; revision?: string };
+export type OutputReference = { kind: "analysis" | "video" | "task"; id: string; revision?: string };
 export type JobProgress = { fraction: number; stage: string };
 export type JobError = { code: string; message: string; transient: boolean };
 /** Retry policy is chosen by the server. Never automatically retry charged generation. */

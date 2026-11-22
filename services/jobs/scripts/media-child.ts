@@ -6,14 +6,15 @@ import { pathToFileURL } from "node:url";
 const [inputFile, resultFile] = process.argv.slice(2);
 if (!inputFile || !resultFile) throw new Error("Expected execution and result files.");
 const request = JSON.parse(await readFile(inputFile, "utf8"));
+const controller = new AbortController();
+process.once("SIGTERM", () => controller.abort());
+process.once("SIGINT", () => controller.abort());
 let result: unknown;
 if (request.kind === "analysis") {
   const { analyzeVideo } = await import(pathToFileURL(path.join(request.repoRoot, "services/media/src/analyze.ts")).href);
-  result = await analyzeVideo(request.inputPath, request.options);
+  result = await analyzeVideo(request.inputPath, { ...request.options, signal: controller.signal });
 } else if (request.kind === "render") {
   const { renderPlan } = await import(pathToFileURL(path.join(request.repoRoot, "packages/video/src/render.ts")).href);
-  const controller = new AbortController();
-  process.once("SIGTERM", () => controller.abort());
   const output = await renderPlan(request.plan, request.outputPath, { ...request.options, signal: controller.signal, onProgress: (fraction: number) => process.stdout.write(`UNFOLD_JOB_PROGRESS ${fraction * 0.9}\n`) });
   let review: unknown; let reviewError: string | undefined;
   if (request.review) {

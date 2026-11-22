@@ -1,9 +1,38 @@
 {
   "compilerOptions": {
-    "target": "ES2022", "lib": ["ES2022", "DOM", "ESNext.Intl"], "module": "NodeNext", "moduleResolution": "NodeNext",
-    "strict": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true,
-    "types": ["node"], "typeRoots": ["../../apps/web/node_modules/@types"]
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "ESNext.Intl"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "../../apps/web/node_modules/@types"
+    ],
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "../../apps/web/src/*"
+      ]
+    }
   },
-  "include": ["src", "test", "scripts", "../../apps/web/src/server/publishing"],
-  "exclude": ["../../apps/web/src/server/publishing/http.ts"]
+  "include": [
+    "src",
+    "test",
+    "scripts",
+    "../../apps/web/src/server/publishing"
+  ],
+  "exclude": [
+    "../../apps/web/src/server/publishing/http.ts"
+  ]
 }

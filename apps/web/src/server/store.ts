@@ -1,8 +1,12 @@
 import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { sampleLibrary, MediaAnalysis, type AgentPlan, type EditPlan, type Library, type StyleProfile, type SupportingFootage } from "@unfold/core";
-import { PrivateStorage, StorageError, type Owner } from "./private-storage";
+import { sampleLibrary, MediaAnalysis, MusicTrack, SfxItem, type AgentPlan, type EditPlan, type Library, type StyleProfile, type SupportingFootage } from "@unfold/core";
+import musicManifest from '../../public/assets/music/manifest.json';
+import sfxManifest from '../../public/assets/sfx/manifest.json';
+import { StorageError, type Owner } from "./private-storage";
+import { createPrivateStorage } from "./storage-factory";
+import { isSupabaseStorage } from "./supabase-storage";
 
 export const REPO_ROOT = path.resolve(process.cwd(), "../..");
 export const DATA_DIR = process.env.UNFOLD_DATA_DIR ?? path.join(REPO_ROOT, "data");
@@ -12,7 +16,7 @@ export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 export const STORE_DIR = path.join(DATA_DIR, "store");
 export const PUBLIC_DIR = path.join(process.cwd(), "public");
 export const ASSETS_DIR = path.join(PUBLIC_DIR, "assets");
-export const storage = new PrivateStorage(path.join(DATA_DIR, "private-v1"));
+export const storage = createPrivateStorage(path.join(DATA_DIR, "private-v1"));
 
 export type GenerationRequest = {
   version: 1; receivedBrief: string; requestedAspect?: "9:16" | "1:1" | "16:9";
@@ -44,6 +48,10 @@ export const store = {
 };
 
 export async function getAnalysis(owner: Owner, videoId: string): Promise<MediaAnalysis | null> {
+  if (isSupabaseStorage(storage)) {
+    const value = await storage.analysis(owner, videoId);
+    return value ? MediaAnalysis.parse(value) : null;
+  }
   const { asset, mediaDir } = await storage.assetPaths(owner, videoId);
   if (asset.status !== "analyzed") return null;
   const raw = await readFile(path.join(mediaDir, asset.assetId, "analysis.json"), "utf8");
@@ -66,6 +74,10 @@ export async function resolveSupporting(owner: Owner, projectId: string, ids: st
 export function frameLoader(owner: Owner, projectId: string) {
   return async (url: string): Promise<string> => {
     if (!url.startsWith(`/media/${projectId}/`) || url.includes("?") || url.includes("#")) throw new StorageError(404, "Not found.");
+    if (isSupabaseStorage(storage)) {
+      if (!/\.(jpg|jpeg|png|webp)$/i.test(url)) throw new StorageError(400, "Invalid frame.");
+      return `data:image/jpeg;base64,${Buffer.from(await storage.mediaBytes(owner,url.slice(7).split('/'))).toString('base64')}`;
+    }
     const file = await storage.mediaPath(owner, url.slice("/media/".length).split("/"));
     if (!/\.(jpg|jpeg|png|webp)$/i.test(file)) throw new StorageError(400, "Invalid frame.");
     return `data:image/jpeg;base64,${(await readFile(file)).toString("base64")}`;
@@ -75,12 +87,13 @@ export function frameLoader(owner: Owner, projectId: string) {
 let libraryCache: { at: number; lib: Library } | null = null;
 export async function getLibrary(): Promise<Library> {
   if (libraryCache && Date.now() - libraryCache.at < 60_000) return libraryCache.lib;
-  let lib: Library = sampleLibrary;
-  try {
-    const { loadLibrary } = await import("@unfold/media");
-    const real = await loadLibrary(ASSETS_DIR);
-    if (real.music.length && real.sfx.length) lib = real;
-  } catch { /* Library manifests may not be installed in a local demo. */ }
+  let lib: Library;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") lib = {music:MusicTrack.array().parse(musicManifest),sfx:SfxItem.array().parse(sfxManifest)};
+  else {
+    lib = sampleLibrary;
+    try { const {loadLibrary}=await import('@unfold/media'); const real=await loadLibrary(ASSETS_DIR); if(real.music.length&&real.sfx.length)lib=real; }
+    catch { /* Preserve local fixture behavior when its asset manifests are absent. */ }
+  }
   libraryCache = { at: Date.now(), lib };
   return lib;
 }
