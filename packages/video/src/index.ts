@@ -3,3 +3,4 @@ export { UnfoldComposition, type UnfoldCompositionProps } from "./UnfoldComposit
 export { getCompositionConfig, resolveSrc } from "./util";
 export { FONTS, ensureFonts } from "./fonts";
 export { COMPOSITION_ID } from "./ids";
+export { CAPTION_DESIGNS, resolveCaptionDesign, hookRepeatsOpening } from "./captionDesign";

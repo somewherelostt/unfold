@@ -8,7 +8,7 @@ const FACE: Record<CaptionPreset, keyof typeof FONTS> = {
   "bold-pop": "anton",
   "clean-pop": "montserrat",
   meme: "bangers",
-  story: "poppins",
+  story: "editorial",
   karaoke: "montserrat",
 };
 export const captionFamily = (preset: CaptionPreset) => FONTS[FACE[preset]];

@@ -32,9 +32,6 @@ export const UnfoldComposition: React.FC<UnfoldCompositionProps> = ({ plan, asse
       }}
     >
       <VideoLayer plan={plan} fx={fx} filterId={filterId} assetBase={assetBase} />
-      {plan.style === "storytime" ? (
-        <AbsoluteFill style={{ background: "radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.35) 100%)" }} />
-      ) : null}
       {fx.flash > 0.01 ? <AbsoluteFill style={{ backgroundColor: "#FFFFFF", opacity: Math.min(1, fx.flash) }} /> : null}
       <Overlays plan={plan} />
       <Captions plan={plan} />

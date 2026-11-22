@@ -30,6 +30,8 @@
     "typecheck": "tsc --noEmit",
     "test:captions": "node --import tsx --test scripts/captions.test.ts",
     "test:render": "node --import tsx --experimental-test-module-mocks --test scripts/render.test.ts",
+    "test:styling": "node --import tsx --experimental-test-module-mocks --test scripts/styling.test.tsx",
+    "test:design": "node --import tsx --experimental-test-module-mocks --test scripts/caption-design.test.tsx",
     "render:sample": "tsx scripts/render-sample.ts"
   }
 }

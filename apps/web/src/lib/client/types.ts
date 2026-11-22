@@ -1,4 +1,4 @@
-import type { AgentPlan, Aspect, CaptionPreset, EditPlan, StylePreset, StyleProfile, TransitionType } from "@unfold/core";
+import type { AgentPlan, Aspect, CaptionDesign, CaptionPreset, EditPlan, StylePreset, StyleProfile, TransitionType } from "@unfold/core";
 
 /** Per-call agent stats from the API (packages/agent StreamStats). Speed shown = genMs + tps. */
 export type ApiStats = {
@@ -58,6 +58,7 @@ export type ReferenceResult = {
 export type Overrides = {
   captions?: boolean;
   captionPreset?: CaptionPreset;
+  captionDesign?: CaptionDesign;
   captionPosition?: "upper" | "center" | "lower";
   uppercase?: boolean;
   highlightColor?: string;

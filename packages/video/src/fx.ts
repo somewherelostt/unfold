@@ -2,7 +2,7 @@ import { random } from "remotion";
 import type { EditPlan } from "@unfold/core";
 import { clamp, easeInCubic, easeInOutSine, easeOutBack, easeOutCubic } from "./util";
 
-/** Per-frame camera state for the video layer, derived from zooms, transitions and beats. */
+/** Per-frame camera state for the video layer, derived from explicit zooms and transitions. */
 export type Fx = {
   scale: number;
   tx: number; // px
@@ -56,17 +56,6 @@ export function computeFx(plan: EditPlan, t: number, frame: number): Fx {
   const fx: Fx = { ...NONE };
   const W = plan.width;
   fx.scale = zoomScale(plan, t);
-
-  // Beat pulse on high-energy styles: tiny scale kick on every beat, decays fast.
-  if (plan.music && (plan.style === "chaos" || plan.style === "gaming-montage")) {
-    let last = -Infinity;
-    for (const b of plan.music.beats) {
-      if (b <= t) last = b;
-      else break;
-    }
-    const since = t - last;
-    if (since >= 0 && since < 0.18) fx.scale *= 1 + 0.03 * Math.pow(1 - since / 0.18, 2);
-  }
 
   plan.transitions.forEach((tr, i) => {
     const d = Math.max(tr.durationSec, 0.12);

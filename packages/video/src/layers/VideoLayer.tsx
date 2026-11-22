@@ -61,8 +61,6 @@ export const VideoLayer: React.FC<{ plan: EditPlan; fx: Fx; filterId: string; as
   if (fx.rgb > 0.5 || fx.glitch > 0.02) filters.push(`url(#${filterId}-glitch)`);
   if (fx.blur > 0.3) filters.push(`blur(${fx.blur.toFixed(2)}px)`);
   if (Math.abs(fx.brightness - 1) > 0.01) filters.push(`brightness(${fx.brightness.toFixed(3)})`);
-  if (plan.style === "chaos" || plan.style === "gaming-montage") filters.push("saturate(1.12) contrast(1.05)");
-  if (plan.style === "storytime") filters.push("saturate(1.04) contrast(1.02)");
 
   const k = fx.rgb;
   return (

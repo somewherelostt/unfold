@@ -224,3 +224,20 @@ test("export sends the preview plan and options, and reports an interrupted stre
   h.context.fetch = async () => new Response('event: progress\ndata: {"progress":0.2}\n\n');
   await assert.rejects(async () => { for await (const event of api.exportVideo("stored")) void event; }, /connection closed/);
 });
+
+test("caption design controls persist, undo, and replace a previous design when choosing a preset", async () => {
+  const h = harness();
+  const id = await h.actions.generate();
+  const design = { typeface: "serif", fontScale: 0.8, weight: "regular", textColor: "#ECE8DF", highlightMode: "none", animation: "none", outline: false };
+  h.actions.override(id, { captionDesign: design });
+  assert.equal(h.usePlan(id).plan.captions.design.typeface, "serif");
+  h.actions.undo(id);
+  assert.equal(h.usePlan(id).plan.captions.design, undefined);
+  h.actions.redo(id);
+  assert.equal(h.usePlan(id).plan.captions.design.fontScale, 0.8);
+  h.flush();
+  const fresh = harness({}, h.storage);
+  assert.equal(fresh.usePlan(id).plan.captions.design.textColor, "#ECE8DF");
+  const base = { ...plan("saved"), captions: { ...plan("saved").captions, design } };
+  assert.equal(h.applyOverrides(base, { captionPreset: "bold-pop" }, library).captions.design, undefined);
+});

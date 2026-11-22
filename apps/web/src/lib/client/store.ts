@@ -132,7 +132,11 @@ export const getState = getSnapshot;
 export function applyOverrides(base: EditPlan, o: Overrides, lib: Library): EditPlan {
   const p: EditPlan = { ...base, captions: { ...base.captions } };
   if (o.captions !== undefined) p.captions.enabled = o.captions;
-  if (o.captionPreset) p.captions.preset = o.captionPreset;
+  if (o.captionPreset) {
+    p.captions.preset = o.captionPreset;
+    delete p.captions.design;
+  }
+  if (o.captionDesign) p.captions.design = o.captionDesign;
   if (o.captionPosition) p.captions.position = o.captionPosition;
   if (o.uppercase !== undefined) p.captions.uppercase = o.uppercase;
   if (o.highlightColor) p.captions.highlightColor = o.highlightColor;
