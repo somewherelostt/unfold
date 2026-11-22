@@ -27,6 +27,21 @@ export function isProtectedPath(pathname: string): boolean {
 
 /** Only allow same-site relative redirects (prevents open redirects via ?next=). */
 export function safeNext(next: string | null | undefined, fallback = "/app"): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback;
-  return next;
+  if (
+    !next ||
+    !next.startsWith("/") ||
+    next.startsWith("//") ||
+    next.includes("\\") ||
+    [...next].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+  ) return fallback;
+
+  try {
+    const origin = "https://unfold.local";
+    const url = new URL(next, origin);
+    // Normalizing dot segments can expose a second leading slash.
+    if (url.origin !== origin || url.pathname.startsWith("//")) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }

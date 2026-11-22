@@ -13,13 +13,12 @@ type Props = {
   testable: boolean;
   model?: string;
   last4: string | null;
-  envFallback: boolean;
   disabled?: boolean;
 };
 
-const btn = "inline-flex h-10 items-center justify-center rounded-md px-4 text-[13px] font-semibold transition-[filter,background-color] duration-[120ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flare/40 disabled:opacity-60";
-const primary = `${btn} bg-flare text-flare-ink hover:brightness-105`;
-const secondary = `${btn} border border-border bg-surface text-ink hover:bg-surface-2`;
+const btn = "inline-flex h-9 items-center justify-center rounded-sm px-3 text-[13px] font-medium transition-[opacity,background-color] duration-[120ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-3 disabled:opacity-50";
+const primary = `${btn} bg-primary-btn text-primary-btn-ink hover:opacity-90`;
+const secondary = `${btn} border border-hairline-strong bg-surface-2 text-text-1 hover:bg-surface-3`;
 
 export function KeyCard(p: Props) {
   const [state, action, saving] = useActionState<SaveState, FormData>(saveKey, {});
@@ -39,26 +38,26 @@ export function KeyCard(p: Props) {
   const showForm = editing ?? !connected;
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-5 sm:p-6">
+    <section className="rounded-lg border border-hairline bg-surface-1 p-5 shadow-raised sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[18px] font-semibold leading-6 tracking-[-0.005em] text-ink">{p.label}</h2>
+            <h2 className="text-[18px] font-medium leading-6 tracking-[-0.005em] text-text-1">{p.label}</h2>
             {p.required ? (
-              <span className="rounded-full bg-flare/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.02em] text-flare">Required</span>
+              <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-2">Required</span>
             ) : (
-              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.02em] text-ink-muted">Optional</span>
+              <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-2">Optional</span>
             )}
           </div>
-          <p className="mt-1 text-[13px] leading-5 text-ink-muted">{p.description}</p>
+          <p className="mt-1 text-[13px] leading-5 text-text-2">{p.description}</p>
           {p.model ? (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-violet/10 px-2.5 py-1 font-mono text-[12px] font-medium text-violet">
-              model · {p.model}
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface-3 px-2.5 py-1 font-mono text-[11px] text-text-2">
+              {p.model}
             </p>
           ) : null}
         </div>
         {p.docsUrl ? (
-          <a href={p.docsUrl} target="_blank" rel="noreferrer" className="text-[13px] text-ink-muted underline-offset-4 hover:text-ink hover:underline">
+          <a href={p.docsUrl} target="_blank" rel="noreferrer" className="text-[13px] text-text-2 underline-offset-4 hover:text-text-1 hover:underline">
           Get a key ↗
         </a>
         ) : null}
@@ -66,7 +65,7 @@ export function KeyCard(p: Props) {
 
       {connected && !showForm ? (
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-10 items-center gap-2 rounded-sm border border-border bg-surface-2 px-3 font-mono text-[14px] text-ink tabular">
+          <span className="inline-flex h-9 items-center gap-2 rounded-sm border border-hairline-strong bg-surface-2 px-3 font-mono text-[13px] text-text-1 tabular">
             <span className="h-2 w-2 rounded-full bg-success" aria-hidden />
             ••••{p.last4}
           </span>
@@ -80,7 +79,7 @@ export function KeyCard(p: Props) {
           </button>
           <button
             type="button"
-            className={`${btn} text-ink-muted hover:text-danger`}
+            className={`${btn} text-text-2 hover:text-danger`}
             disabled={removing || p.disabled}
             onClick={() =>
               startRemove(async () => {
@@ -115,7 +114,7 @@ export function KeyCard(p: Props) {
             required
             placeholder={p.placeholder}
             disabled={p.disabled}
-            className="h-10 min-w-0 flex-1 rounded-sm border border-border bg-surface-2 px-3 font-mono text-[14px] text-ink placeholder:font-sans placeholder:text-ink-muted outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-flare focus:ring-2 focus:ring-flare/25"
+            className="h-9 min-w-0 flex-1 rounded-sm border border-hairline-strong bg-surface-2 px-3 font-mono text-[13px] text-text-1 placeholder:font-sans placeholder:text-text-3 outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-text-3 focus:ring-2 focus:ring-text-3/20 disabled:opacity-50"
           />
           <div className="flex gap-2">
             <button type="submit" className={primary} disabled={saving || p.disabled}>
@@ -128,9 +127,6 @@ export function KeyCard(p: Props) {
         </form>
       ) : null}
 
-      {!connected && p.envFallback ? (
-        <p className="mt-3 text-[13px] leading-5 text-ink-muted">Using the server&apos;s shared key until you add your own.</p>
-      ) : null}
       {state.error ? <p className="mt-3 text-[13px] text-danger" role="alert">{state.error}</p> : null}
       {state.ok && !saving && state.last4 && connected && !showForm ? (
         <p className="mt-3 text-[13px] text-success" role="status">Saved. Encrypted and stored. Only ••••{state.last4} is ever shown.</p>
@@ -140,7 +136,7 @@ export function KeyCard(p: Props) {
         <p className={`mt-3 text-[13px] ${test.ok ? "text-success" : "text-danger"}`} role="status">
           {test.ok ? "✓ " : "✕ "}
           {test.message}
-          {typeof test.ms === "number" ? <span className="ml-2 font-mono text-ink-muted tabular">{test.ms}ms</span> : null}
+          {typeof test.ms === "number" ? <span className="ml-2 font-mono text-text-2 tabular">{test.ms}ms</span> : null}
         </p>
       ) : null}
     </section>

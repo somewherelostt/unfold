@@ -9,25 +9,26 @@ export const metadata: Metadata = { title: "Sign in · Unfold" };
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
-    <main className="relative flex flex-1 flex-col">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[420px] opacity-[0.10] [background:var(--gradient-brand)] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+    <main className="relative flex flex-1 flex-col bg-bg text-text-1">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[480px] opacity-40 [background:var(--glow-hero)]" />
       <header className="relative mx-auto flex w-full max-w-6xl items-center px-4 py-5 sm:px-6">
         <Logo />
       </header>
       <div className="relative flex flex-1 items-start justify-center px-4 pb-16 pt-10 sm:items-center sm:pt-0">
-        <div className="w-full max-w-[400px]">
-          <h1 className="font-display text-[40px] font-extrabold leading-[44px] tracking-[-0.02em] text-ink">
+        <div className="relative w-full max-w-[400px]">
+          <p className="mb-3 font-mono text-[11px] text-text-3">Your editing agent</p>
+          <h1 className="font-display text-[40px] font-normal leading-[44px] tracking-[-0.02em] text-text-1">
             Sign in to Unfold
           </h1>
-          <p className="mt-3 text-[15px] leading-6 text-ink-muted">One raw clip. Nine viral edits. Four seconds.</p>
-          <div className="mt-8 rounded-lg border border-border bg-surface p-6">
+          <p className="mt-3 text-[15px] leading-6 text-text-2">Turn your raw clip into a finished edit, with captions, music and a hook.</p>
+          <div className="mt-8 rounded-lg border border-hairline bg-surface-1 p-6 shadow-raised">
             <Suspense fallback={<div className="h-[132px]" />}>
               <LoginBody searchParams={searchParams} />
             </Suspense>
           </div>
-          <p className="mt-6 text-[13px] leading-5 text-ink-muted">
+          <p className="mt-6 text-[13px] leading-5 text-text-2">
             No password. We email you a link and a 6-digit code. New here? Signing in creates your account.{" "}
-            <Link href="/" className="text-ink underline-offset-4 hover:underline">Back to home</Link>
+            <Link href="/" className="text-text-1 underline-offset-4 hover:underline">Back to home</Link>
           </p>
         </div>
       </div>
@@ -50,7 +51,7 @@ async function LoginBody({ searchParams }: { searchParams: PageProps<"/login">["
           {isDevNoAuth() ? (
             <>
               {" "}Demo mode is on, so you can{" "}
-              <Link href={next} className="font-medium text-flare underline-offset-4 hover:underline">continue without signing in</Link>.
+              <Link href={next} className="font-medium text-text-1 underline underline-offset-4">continue without signing in</Link>.
             </>
           ) : (
             <> For local demos, set <code className="font-mono">UNFOLD_DEV_NO_AUTH=1</code>.</>

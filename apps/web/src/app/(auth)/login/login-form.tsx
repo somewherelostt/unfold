@@ -3,9 +3,9 @@ import { useActionState, useState } from "react";
 import { sendCode, verifyCode, type LoginState } from "./actions";
 
 const input =
-  "h-11 w-full rounded-sm border border-border bg-surface-2 px-3 text-[15px] text-ink placeholder:text-ink-muted outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-flare focus:ring-2 focus:ring-flare/25";
+  "h-11 w-full rounded-sm border border-hairline-strong bg-surface-2 px-3 text-[13px] text-text-1 placeholder:text-text-3 outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-text-3 focus:ring-2 focus:ring-text-3/20 disabled:opacity-50";
 const primary =
-  "inline-flex h-11 w-full items-center justify-center rounded-md bg-flare px-4 text-[15px] font-semibold text-flare-ink transition-[filter,opacity] duration-[120ms] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flare/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-60";
+  "inline-flex h-10 w-full items-center justify-center rounded-sm bg-primary-btn px-4 text-[13px] font-medium text-primary-btn-ink transition-opacity duration-[120ms] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-3 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50";
 
 export function LoginForm({ next, disabled }: { next: string; disabled?: boolean }) {
   const [emailState, emailAction, sending] = useActionState<LoginState, FormData>(sendCode, { step: "email" });
@@ -16,16 +16,16 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
   const email = emailState.email ?? "";
 
   if (onCode) {
-    const err = codeState.step === "code" ? codeState.error : codeState.error;
+    const err = codeState.error;
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-[13px] leading-5 text-ink-muted" role="status">
+        <p className="text-[13px] leading-5 text-text-2" role="status">
           {emailState.step === "code" ? emailState.info : null} Click the link, or enter the code here.
         </p>
         <form action={codeAction} className="flex flex-col gap-3">
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="next" value={next} />
-          <label htmlFor="code" className="text-[11px] font-medium uppercase tracking-[0.02em] text-ink-muted">
+          <label htmlFor="code" className="text-[12px] font-medium text-text-2">
             6-digit code
           </label>
           <input
@@ -46,13 +46,13 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
           </button>
         </form>
         <div className="flex items-center justify-between text-[13px]">
-          <button type="button" className="text-ink-muted underline-offset-4 hover:text-ink hover:underline" onClick={() => setChangeEmail((n) => n + 1)}>
+          <button type="button" className="text-text-2 underline-offset-4 hover:text-text-1 hover:underline" onClick={() => setChangeEmail((n) => n + 1)}>
             Use a different email
           </button>
           <form action={emailAction}>
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="next" value={next} />
-            <button type="submit" disabled={sending} className="text-ink-muted underline-offset-4 hover:text-ink hover:underline">
+            <button type="submit" disabled={sending} className="text-text-2 underline-offset-4 hover:text-text-1 hover:underline">
               {sending ? "Sending…" : "Resend code"}
             </button>
           </form>
@@ -64,7 +64,7 @@ export function LoginForm({ next, disabled }: { next: string; disabled?: boolean
   return (
     <form action={(fd) => { setChangeEmail(0); return emailAction(fd); }} className="flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
-      <label htmlFor="email" className="text-[11px] font-medium uppercase tracking-[0.02em] text-ink-muted">
+      <label htmlFor="email" className="text-[12px] font-medium text-text-2">
         Email
       </label>
       <input

@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_ANON_KEY, AUTH_URL, isDevNoAuth, isProtectedPath, isAuthConfigured } from "./env";
+import { AUTH_ANON_KEY, AUTH_URL, isDevNoAuth, isProtectedPath, isAuthConfigured, safeNext } from "./env";
 
 /** Refreshes the auth session cookie and redirects signed-out visitors away from protected paths. */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
@@ -13,6 +13,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   }
 
   let response = NextResponse.next({ request });
+  const refreshHeaders = new Headers();
   const db = createServerClient(AUTH_URL, AUTH_ANON_KEY, {
     cookies: {
       getAll() {
@@ -22,7 +23,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        Object.entries(headers ?? {}).forEach(([k, v]) => response.headers.set(k, v));
+        Object.entries(headers ?? {}).forEach(([k, v]) => {
+          response.headers.set(k, v);
+          refreshHeaders.set(k, v);
+        });
       },
     },
   });
@@ -33,17 +37,20 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
   if (protectedPath && !signedIn && !isDevNoAuth()) {
     const redirect = redirectToLogin(request, pathname + search);
-    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
-    return redirect;
+    return preserveSession(redirect, response, refreshHeaders);
   }
   if (pathname === "/login" && signedIn) {
     const next = request.nextUrl.searchParams.get("next");
-    const url = request.nextUrl.clone();
-    url.pathname = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
-    url.search = "";
-    return NextResponse.redirect(url);
+    const url = new URL(safeNext(next), request.url);
+    return preserveSession(NextResponse.redirect(url), response, refreshHeaders);
   }
   return response;
+}
+
+function preserveSession(redirect: NextResponse, session: NextResponse, headers: Headers) {
+  session.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  headers.forEach((value, name) => redirect.headers.set(name, value));
+  return redirect;
 }
 
 function redirectToLogin(request: NextRequest, next: string, reason?: string) {

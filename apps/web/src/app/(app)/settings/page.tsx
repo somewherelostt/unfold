@@ -6,7 +6,7 @@ import { SignOutButton } from "../../(auth)/_components/sign-out-button";
 import { isEncryptionConfigured } from "@/lib/crypto";
 import { listUserKeys } from "@/lib/auth/api-keys";
 import { isDevNoAuth, isAuthConfigured } from "@/lib/auth/env";
-import { CEREBRAS_MODEL, PROVIDERS, PROVIDER_IDS } from "@/lib/auth/providers";
+import { PROVIDERS, PROVIDER_IDS } from "@/lib/auth/providers";
 import { getUser } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 import { KeyCard } from "./key-card";
@@ -15,9 +15,9 @@ export const metadata: Metadata = { title: "Settings · Unfold" };
 
 export default function SettingsPage() {
   return (
-    <main className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+    <main className="flex flex-1 flex-col bg-bg text-text-1">
+      <header className="border-b border-hairline bg-surface-1">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Logo href="/app" />
           <Suspense fallback={<div className="h-9 w-40" />}>
             <Account />
@@ -25,11 +25,16 @@ export default function SettingsPage() {
         </div>
       </header>
       <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
-        <Link href="/app" className="text-[13px] text-ink-muted underline-offset-4 hover:text-ink hover:underline">← Back to editor</Link>
-        <h1 className="mt-4 font-display text-[40px] font-extrabold leading-[44px] tracking-[-0.02em] text-ink">API keys</h1>
-        <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink-muted">
-          Connect your own keys. They&apos;re encrypted with AES-256-GCM before they touch the database and never sent back to your browser.
+        <Link href="/app" className="text-[13px] text-text-2 underline-offset-4 hover:text-text-1 hover:underline">← Back to editor</Link>
+        <h1 className="mt-4 font-display text-[40px] font-normal leading-[44px] tracking-[-0.02em] text-text-1">API keys</h1>
+        <p className="mt-3 max-w-xl text-[13px] leading-5 text-text-2">
+          Check your Cerebras key and keep it encrypted in your account. Only the last four characters are shown after saving.
         </p>
+        <div className="mt-5">
+          <Notice title="Editing connection">
+            Editing uses the shared OpenClaw connection. Saving or testing a key here leaves that connection in place.
+          </Notice>
+        </div>
         <div className="mt-8">
           <Suspense fallback={<KeysSkeleton />}>
             <Keys />
@@ -45,9 +50,9 @@ async function Account() {
   if (!user) return null;
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="hidden truncate text-[13px] text-ink-muted sm:inline">
+      <span className="hidden truncate text-[13px] text-text-2 sm:inline">
         {user.email}
-        {user.dev ? <span className="ml-2 rounded-full bg-violet/10 px-2 py-0.5 text-[11px] font-medium text-violet">demo mode</span> : null}
+        {user.dev ? <span className="ml-2 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-2">Demo mode</span> : null}
       </span>
       {!user.dev ? <SignOutButton /> : null}
     </div>
@@ -70,7 +75,6 @@ async function Keys() {
   }
   const byProvider = new Map(stored.map((k) => [k.provider, k.last4]));
   const canSave = (authOk || devMemory) && (encOk || devMemory);
-  const envFallback = { cerebras: !!process.env.CEREBRAS_API_KEY, gpu: !!process.env.GPU_API_KEY };
 
   return (
     <div className="flex flex-col gap-4">
@@ -100,9 +104,8 @@ async function Keys() {
             docsUrl={meta.docsUrl}
             required={meta.required}
             testable={meta.testable}
-            model={id === "cerebras" ? CEREBRAS_MODEL : undefined}
+            model={id === "cerebras" ? "Kimi K3.1 Pro" : undefined}
             last4={byProvider.get(id) ?? null}
-            envFallback={envFallback[id]}
             disabled={!canSave}
           />
         );
@@ -114,8 +117,8 @@ async function Keys() {
 function KeysSkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-hidden>
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="h-[148px] animate-pulse rounded-lg border border-border bg-surface" />
+      {PROVIDER_IDS.map((id) => (
+        <div key={id} className="h-[148px] animate-pulse rounded-lg border border-hairline bg-surface-1" />
       ))}
     </div>
   );

@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { deleteUserApiKey, getUserApiKey, saveUserApiKey } from "@/lib/auth/api-keys";
+import { deleteUserApiKey, getStoredUserApiKey, saveUserApiKey } from "@/lib/auth/api-keys";
 import { CEREBRAS_MODEL, isProvider, type Provider } from "@/lib/auth/providers";
 import { getUser } from "@/lib/auth/server";
 
@@ -36,11 +36,16 @@ export async function removeKey(provider: Provider): Promise<SaveState> {
   }
 }
 
-/** Calls GET {CEREBRAS_BASE_URL}/models with the user's key (or env fallback) and checks the Kimi model is listed. */
+/** Checks the user's saved key against the model list, without a shared-key fallback. */
 export async function testCerebrasKey(): Promise<TestResult> {
   const user = await getUser();
   if (!user) return { ok: false, message: "Sign in first." };
-  const key = await getUserApiKey(user.id, "cerebras");
+  let key: string | null;
+  try {
+    key = await getStoredUserApiKey(user.id, "cerebras");
+  } catch {
+    return { ok: false, message: "Couldn't read your saved key. Replace it and try again." };
+  }
   if (!key) return { ok: false, message: "No Cerebras key saved yet." };
   const base = (process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1").replace(/\/$/, "");
   const started = Date.now();
@@ -57,8 +62,8 @@ export async function testCerebrasKey(): Promise<TestResult> {
     const models = (body.data ?? []).map((m) => m.id);
     const found = models.includes(CEREBRAS_MODEL);
     return found
-      ? { ok: true, ms, models, message: `Key works. ${CEREBRAS_MODEL} is available.` }
-      : { ok: false, ms, models, message: `Key works, but ${CEREBRAS_MODEL} isn't on this account.` };
+      ? { ok: true, ms, models, message: "Saved key works. Kimi K3.1 Pro is available." }
+      : { ok: false, ms, models, message: "Saved key works, but Kimi K3.1 Pro isn't available on this account." };
   } catch (err) {
     return { ok: false, message: `Couldn't reach Cerebras: ${(err as Error).message}` };
   }
