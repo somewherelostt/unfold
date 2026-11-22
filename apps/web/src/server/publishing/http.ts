@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/server";
 import { createPublishingApi, publishingBody, publishingError, publishingJson, requireSameOrigin } from "./api.ts";
 import { getPublishingRuntime } from "./runtime.ts";
 import { servePublishingDelivery } from "./media.ts";
+import { serveAccountAvatar } from "./avatar.ts";
 import { PublishingError } from "../../../../../services/publishing/src/types.ts";
 export async function handlePublishingRequest(request: Request, action: string[]): Promise<Response> {
   try {
@@ -12,6 +13,7 @@ export async function handlePublishingRequest(request: Request, action: string[]
     const api = createPublishingApi(runtime), path = action.join("/"), url = new URL(request.url);
     if (request.method === "GET") {
       if (!path) return publishingJson(await api.workspace(owner));
+      if (action[0] === "connections" && action[2] === "avatar" && action.length === 3) return await serveAccountAvatar(owner, action[1], runtime.store, runtime.client);
       if (path === "connections/callback") {
         try { await api.callback(owner, url.searchParams.get("state") ?? ""); }
         catch { return Response.redirect(new URL("/app/publishing?connection=incomplete", runtime.config.appOrigin ?? url.origin), 303); }

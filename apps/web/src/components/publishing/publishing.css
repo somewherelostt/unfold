@@ -2,3 +2,105 @@
 
 .uf-publish-mobile-date{display:none}
 @media(max-width:680px){.uf-publish-mobile-date{display:grid;gap:8px;margin-top:16px;font-size:12px}.uf-publish-calendar-grid,.uf-publish-calendar>.uf-publish-row{display:none}}
+
+/* Platform artwork retains each service's own colors and geometry. */
+.uf-publish-mark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.uf-publish-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.uf-publish-mark.is-large { width: 48px; height: 48px; flex-basis: 48px; }
+
+/* Connection cards give the verified account and the next action their own space. */
+.uf-publish-account-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 20px; }
+.uf-publish-account-card { --channel-color: #ff4f9a; position: relative; overflow: hidden; gap: 22px; padding: 28px; min-height: 410px; border-color: color-mix(in srgb,var(--channel-color) 15%,var(--hairline)); background: color-mix(in srgb,var(--channel-color) 3%,var(--surface-1)); }
+.uf-publish-account-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--channel-color); opacity: .7; }
+.uf-publish-channel-pinterest { --channel-color: #e60023; }
+.uf-publish-channel-bluesky { --channel-color: #0560ff; }
+.uf-publish-channel-header { display: flex; align-items: center; gap: 16px; }
+.uf-publish-channel-header h3 { font-size: 21px; letter-spacing: -.45px; line-height: 1.3; }
+.uf-publish-channel-format { color: var(--text-3); font-size: 9px; letter-spacing: .13em; font-weight: 550; margin-bottom: 4px; }
+.uf-publish-channel-state { margin-left: auto; align-self: flex-start; color: var(--text-3); font-size: 11px; padding-top: 3px; }
+.uf-publish-channel-state.is-connected { color: #8dd6ae; }
+.uf-publish-channel-description { color: var(--text-2); line-height: 1.7; max-width: 330px; }
+.uf-publish-channel-accounts { flex: 1; }
+.uf-publish-channel-accounts .uf-publish-account { padding-top: 20px; }
+.uf-publish-no-account { min-height: 122px; display: flex; align-items: center; gap: 14px; border-top: 1px solid var(--hairline); padding-top: 20px; }
+.uf-publish-no-account>span { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; border: 1px dashed var(--hairline-strong); color: var(--text-3); font-size: 22px; }
+.uf-publish-no-account strong { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.uf-publish-no-account p { color: var(--text-3); font-size: 12px; line-height: 1.7; margin-top: 5px; max-width: 260px; }
+.uf-publish-channel-footer { display: grid; gap: 14px; margin-top: auto; }
+.uf-publish-connect { justify-content: space-between; border-color: color-mix(in srgb,var(--channel-color) 32%,var(--hairline)); background: color-mix(in srgb,var(--channel-color) 9%,var(--surface-2)); }
+.uf-publish-connect:not(:disabled):hover { border-color: color-mix(in srgb,var(--channel-color) 65%,var(--hairline)); background: color-mix(in srgb,var(--channel-color) 15%,var(--surface-2)); }
+@media(max-width:760px) { .uf-publish-account-grid { grid-template-columns: 1fr; } .uf-publish-account-card { min-height: 0; padding: 24px; } }
+
+/* Account state carries meaning in text, icon and color. */
+.uf-publish-identity { display: flex; align-items: center; gap: 12px; }
+.uf-publish-account-avatar { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb,var(--channel-color) 12%,var(--surface-2)); border: 1px solid color-mix(in srgb,var(--channel-color) 20%,var(--hairline)); color: var(--text-1); font-size: 16px; font-weight: 500; }
+.uf-publish-identity-copy { min-width: 0; flex: 1; }
+.uf-publish-identity-copy strong { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
+.uf-publish-identity-copy p { margin-top: 4px; color: var(--text-3); font-size: 11px; }
+.uf-publish-status { border-radius: 999px; padding: 4px 9px; font-size: 10px; }
+.uf-publish-status-published { color: #8dd6ae; background: rgb(59 157 106 / .1); border-color: rgb(110 202 150 / .2); }
+.uf-publish-status-processing,.uf-publish-status-publishing,.uf-publish-status-reconciling { color: #e6c87e; background: rgb(192 154 64 / .08); border-color: rgb(230 200 126 / .18); }
+.uf-publish-status-failed,.uf-publish-status-unknown { background: rgb(225 99 94 / .08); border-color: rgb(255 157 152 / .18); }
+.uf-publish-account-hint { color: var(--text-3); font-size: 12px; line-height: 1.6; margin-top: 12px; }
+.uf-publish-account .uf-publish-account-options { margin: 16px 0 4px; }
+.uf-publish-account-options summary { justify-content: space-between; text-decoration: none; color: var(--text-2); font-size: 12px; border-radius: 7px; }
+.uf-publish-account-options summary>span { color: var(--text-3); transition: transform .15s ease; }
+.uf-publish-account-options[open] summary>span { transform: rotate(180deg); }
+.uf-publish-account-options>div { padding: 4px 12px 12px; border: 1px solid var(--hairline); border-radius: 10px; margin: 4px 0 10px; background: var(--surface-1); }
+.uf-publish-account-options ul { display: grid; gap: 8px; padding: 3px 0 8px; color: var(--text-2); list-style: none; }
+.uf-publish-account-options li::before { content: "✓"; color: #8dd6ae; margin-right: 9px; }
+.uf-publish-account-options button { padding-left: 0; color: var(--text-3); }
+.uf-publish-account>.uf-publish-actions { margin-left: -10px; }
+.uf-publish-channel-footer .uf-publish-connect { min-height: 46px; }
+
+/* Final responsive and contrast pass. */
+.uf-publish-channel-state.is-connected,.uf-publish-status-published { color: var(--success); }
+.uf-publish-status-processing,.uf-publish-status-publishing,.uf-publish-status-reconciling { color: var(--accent-text,var(--accent)); }
+.uf-publish-account-options li::before { content: "•"; color: var(--text-3); }
+.uf-publish-account-card { transition: border-color .15s ease,background-color .15s ease; }
+.uf-publish-account-card:focus-within { border-color: color-mix(in srgb,var(--channel-color) 48%,var(--hairline)); }
+.uf-publishing :where(button,a,summary,input,select,textarea):focus-visible { outline: 2px solid var(--accent-text,var(--accent)); outline-offset: 4px; }
+.uf-publish-section-heading h2 { max-width: 660px; text-wrap: balance; }
+.uf-publish-channel-header>div { min-width: 0; }
+@media(max-width:680px) {
+  .uf-publish-heading>.ui-button { width: 100%; justify-content: center; }
+  .uf-publish-section-heading { margin-top: 24px; }
+  .uf-publish-section-heading h2 { font-size: 22px; line-height: 1.25; }
+  .uf-publish-account-card { padding: 22px; gap: 20px; }
+  .uf-publish-channel-header { gap: 14px; }
+  .uf-publish-channel-description { font-size: 13px; }
+  .uf-publish-identity { flex-wrap: wrap; }
+  .uf-publish-identity-copy { min-width: 110px; }
+  .uf-publish-identity>.uf-publish-status { margin-left: auto; }
+  .uf-publish-no-account { min-height: 110px; }
+}
+@media(max-width:420px) {
+  .uf-publish-channel-header { display: grid; grid-template-columns: 48px minmax(0,1fr); row-gap: 5px; }
+  .uf-publish-channel-header>.uf-publish-mark { grid-row: 1/3; }
+  .uf-publish-channel-header>div { grid-column: 2; }
+  .uf-publish-channel-state { grid-column: 2; margin-left: 0; padding-top: 0; }
+  .uf-publish-identity { gap: 10px; }
+  .uf-publish-identity-copy { min-width: 90px; }
+  .uf-publish-identity>.uf-publish-status { margin-left: 50px; }
+}
+@media(prefers-reduced-motion:reduce) { .uf-publish-account-card,.uf-publish-account-options summary>span { transition: none; } }
+
+.uf-publish-account-avatar { position: relative; overflow: hidden; }
+.uf-publish-account-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.uf-publish-account-avatar img.is-loaded { opacity: 1; }
+
+.uf-app .uf-publishing .ui-button { min-height: 44px; }
+.uf-app .uf-publishing .uf-publish-channel-footer .ui-button { min-height: 46px; }
+
+.uf-publish-channel-state.is-pending { color: var(--accent-text,var(--accent)); }
+.uf-publish-connection-history { border-top: 1px solid var(--hairline); margin-top: 12px; padding-top: 6px; font-size: 11px; color: var(--text-3); }
+.uf-publish-connection-history summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.uf-publish-connection-history summary>span { font-variant-numeric: tabular-nums; border-radius: 5px; background: var(--surface-2); padding: 3px 7px; }
+.uf-publish-connection-history>div { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

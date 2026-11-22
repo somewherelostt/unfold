@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-22",
+  "instagram": {
+    "source": "https://www.meta.com/brand/resources/instagram/instagram-brand/",
+    "asset": "IG_brand_asset_pack_2023.zip / 01 Static Glyph/01 Gradient Glyph/Instagram_Glyph_Gradient.png",
+    "notes": "Original approved gradient glyph. Next Image handles display sizing."
+  },
+  "pinterest": {
+    "source": "https://s.pinimg.com/webapp/pinterest_favicon-70db4fa7.svg",
+    "guidelines": "https://business.pinterest.com/brand-guidelines/",
+    "notes": "Official badge geometry in primary red #e60023 over white. No filters or effects."
+  },
+  "bluesky": {
+    "source": "https://bsky.social/about/brand-assets/butterfly/bluesky_media_kit_logo_transparent_1.svg",
+    "guidelines": "https://bsky.social/about/support/icons",
+    "notes": "Only appears for existing account or history records; unsupported publishing remains hidden."
+  }
+}
