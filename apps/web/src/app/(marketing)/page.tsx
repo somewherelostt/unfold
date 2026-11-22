@@ -1,30 +1,28 @@
 import type { Metadata } from "next";
 import "@/components/marketing/marketing.css";
-import { AgentDecides, Faq, FinalCta, Footer, Hero, HowItWorks, Nav, Variants } from "@/components/marketing/Sections";
-import { ProductMockup } from "@/components/marketing/ProductMockup";
-import { Showcase } from "@/components/marketing/Showcase";
-import { SpeedSection } from "@/components/marketing/SpeedSection";
+import { Features } from "@/components/marketing/Features";
+import { Hero, Nav } from "@/components/marketing/Hero";
+import { RawToEdit } from "@/components/marketing/RawToEdit";
+import { Faq, FinalCta, Footer } from "@/components/marketing/Sections";
+import { Ways } from "@/components/marketing/Ways";
+import { Speed } from "@/components/marketing/Speed";
 
 export const metadata: Metadata = {
-  title: "Unfold · Turn one clip into every version that could go viral",
+  title: "Unfold · Raw footage in. Viral edit out.",
   description:
-    "Upload a raw clip. An agent on Kimi K3.1 Pro (Cerebras) adds captions, beat-synced music, transitions and meme sounds, nine different ways, in seconds.",
+    "Turn raw footage into one polished edit with captions, beat-synced music, transitions and sound effects, powered by Kimi K3.1 Pro on Cerebras.",
 };
 
-// Section order alternates page and raised bands instead of divider lines:
-// hero + mockup · examples · how (band) · agent · speed (band) · variants · FAQ (band) · CTA
 export default function Home() {
   return (
-    <div className="mk-root flex-1 overflow-x-clip bg-bg">
+    <div data-theme="light" className="mk-root mk-light flex-1 overflow-x-clip">
       <Nav />
       <main>
         <Hero />
-        <ProductMockup />
-        <Showcase />
-        <HowItWorks />
-        <AgentDecides />
-        <SpeedSection />
-        <Variants />
+        <RawToEdit />
+        <Features />
+        <Ways />
+        <Speed />
         <Faq />
         <FinalCta />
       </main>

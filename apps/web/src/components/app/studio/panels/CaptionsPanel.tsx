@@ -60,7 +60,7 @@ export function CaptionsPanel({ plan, overrides, set }: PanelProps) {
         </Row>
         <Row label="Position">
           <Segmented
-            className="w-[168px]"
+            className="w-[184px]"
             options={[
               { value: "upper", label: "Top" },
               { value: "center", label: "Middle" },
