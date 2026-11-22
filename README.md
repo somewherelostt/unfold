@@ -32,7 +32,11 @@ brand               Brand guidelines, tokens, logo
 ## Run locally
 ```bash
 pnpm install
-cp .env.example .env                                  # fill in values yourself
+cp .env.example apps/web/.env.local                   # fill in values yourself
 openclaw --profile unfold gateway run --port 18890   # see agent-workspace/README.md
 pnpm dev
 ```
+
+The app reads environment variables from `apps/web/.env.local`. For the local demo, use `UNFOLD_DEV_NO_AUTH=1`; real email sign-in setup is documented in `db/README.md`. Editing uses the configured OpenClaw gateway.
+
+The landing leads into a single edit. Attach a clip, choose a caption style and aspect ratio, then refine the result in the dark editor. Export uses the currently previewed edit, including manual changes, at 720p or 1080p, with an optional caption burn-in. Alternate versions stay in the editor drawer.

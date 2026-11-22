@@ -1,0 +1,36 @@
+/* Shared primitive styles (prompt shell agent bar, chip row). Motion uses the one curve in --ease. */
+.ui-chip-row { scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+.ui-chip-row::-webkit-scrollbar { display: none; }
+@media (min-width: 640px) { .ui-chip-row { -webkit-mask-image: none; mask-image: none; } }
+
+.ui-agent-bar { background: linear-gradient(90deg, transparent, var(--agent), var(--accent), transparent); background-size: 50% 100%; background-repeat: no-repeat; }
+@media (prefers-reduced-motion: no-preference) {
+  .ui-agent-bar { animation: ui-agent-bar 1.2s var(--ease) infinite; }
+  @keyframes ui-agent-bar { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+}
+
+/* Popover / dialog / toast entrance: fade + scale .96, one curve. */
+.ui-pop { animation: ui-pop var(--dur-pop) var(--ease) both; }
+@keyframes ui-pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+.ui-pop.-translate-x-1\/2 { animation-name: ui-pop-x; }
+@keyframes ui-pop-x { from { opacity: 0; transform: translateX(-50%) scale(.96); } to { opacity: 1; transform: translateX(-50%); } }
+dialog.ui-dialog[open] { animation: ui-pop 200ms var(--ease) both; }
+dialog.ui-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(8px); }
+
+/* Agent shimmer and placeholder pulse */
+.ui-shimmer {
+  background: linear-gradient(90deg, var(--text-3) 0%, var(--text-3) 35%, var(--agent) 50%, var(--text-3) 65%, var(--text-3) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ui-pulse { opacity: .65; }
+@media (prefers-reduced-motion: no-preference) {
+  .ui-shimmer { animation: ui-shimmer 2s linear infinite; }
+  @keyframes ui-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+  .ui-pulse { animation: ui-pulse 1.6s ease-in-out infinite; }
+  @keyframes ui-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .8; } }
+}
+
+/* Slider thumb */
+.ui-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 9999px; background: var(--text-1); box-shadow: 0 1px 3px rgb(0 0 0 / .4); }
+.ui-slider::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 9999px; background: var(--text-1); }
