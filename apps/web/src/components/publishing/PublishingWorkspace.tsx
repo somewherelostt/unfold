@@ -75,9 +75,40 @@ export function PublishingWorkspace() {
 
 function Calendar({ posts, selected, onSelect }: { posts: PostView[]; selected: string | null; onSelect: (day: string | null) => void }) {
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
-  const count = new Map<string, number>(); posts.forEach((p) => count.set(dayKey(p), (count.get(dayKey(p)) ?? 0) + 1));
-  const prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`, days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  return <Panel className="uf-card uf-publish-calendar"><div className="uf-publish-row uf-publish-between"><h2>{month.toLocaleDateString("en", { month: "long", year: "numeric" })}</h2><div><Button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>←</Button><Button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>→</Button></div></div><p className="uf-publish-small">Dates follow each post’s selected time zone. Open a date to see the exact times.</p><label className="uf-publish-mobile-date">Choose a date<input className="uf-field uf-publish-field" type="date" value={selected ?? ""} onChange={(e) => onSelect(e.target.value || null)} /></label><div className="uf-publish-calendar-grid">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <span key={d} className="uf-publish-small">{d}</span>)}{Array.from({ length: month.getDay() }, (_, i) => <span key={`blank${i}`} />)}{Array.from({ length: days }, (_, i) => { const key = `${prefix}-${String(i + 1).padStart(2, "0")}`; return <button key={key} aria-pressed={selected === key} aria-label={`${key}, ${count.get(key) ?? 0} posts`} onClick={() => onSelect(selected === key ? null : key)}><span>{i + 1}</span>{count.has(key) && <span className="uf-publish-calendar-count">{count.get(key)}</span>}</button>; })}</div></Panel>;
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const today = dateKey(new Date());
+  const count = new Map<string, number>();
+  posts.forEach((post) => { const key = dayKey(post); count.set(key, (count.get(key) ?? 0) + 1); });
+  // Six complete weeks keep month navigation steady, including February and year boundaries.
+  const dates = Array.from({ length: 42 }, (_, i) => new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay() + i));
+  const title = month.toLocaleDateString("en", { month: "long", year: "numeric" });
+  return <Panel className="uf-card uf-publish-calendar" role="region" aria-label="Publishing calendar">
+    <div className="uf-publish-calendar-header">
+      <h2 aria-live="polite" aria-atomic="true">{title}</h2>
+      <nav aria-label="Calendar months">
+        <Button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>←</Button>
+        <Button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>→</Button>
+      </nav>
+    </div>
+    <p className="uf-publish-small uf-publish-calendar-note">Dates use each post’s time zone.</p>
+    <div className="uf-publish-calendar-grid" role="group" aria-label={`${title} dates`}>
+      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day} className="uf-publish-small">{day}</span>)}
+      {dates.map((date) => {
+        const key = dateKey(date), total = count.get(key) ?? 0;
+        const outside = date.getMonth() !== month.getMonth();
+        return <button key={key} type="button" data-outside={outside || undefined}
+          aria-pressed={selected === key} aria-current={today === key ? "date" : undefined}
+          aria-label={`${key}, ${total} ${total === 1 ? "post" : "posts"}`}
+          onClick={() => {
+            onSelect(selected === key ? null : key);
+            if (outside) setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+          }}>
+          <span className="uf-publish-day-number">{date.getDate()}</span>
+          {total > 0 && <span className="uf-publish-calendar-count" aria-hidden="true">{total}</span>}
+        </button>;
+      })}
+    </div>
+  </Panel>;
 }
 
 function initialInput(account: AccountView): DestinationInput {
