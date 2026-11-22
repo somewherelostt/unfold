@@ -21,7 +21,7 @@ test("supervised worker resumes a persisted future schedule after stopping, with
     override async verifyAccount(a: Account) { return a; }
     override async execute(_a: Account, slug: string) {
       if (slug === "INSTAGRAM_POST_IG_USER_MEDIA") return { id: "456" };
-      if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { "456": { id: "456", status_code: "FINISHED" } };
+      if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { objects: { "456": { id: "456", status_code: "FINISHED" } } };
       if (slug === "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") { publishCalls++; return { id: "789" }; }
       if (slug === "INSTAGRAM_GET_IG_MEDIA") return { id: "789", permalink: "https://www.instagram.com/reel/fixture/" };
       throw Error("Unexpected fixture action");

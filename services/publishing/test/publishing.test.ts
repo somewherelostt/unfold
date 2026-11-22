@@ -128,7 +128,7 @@ test("a timed-out Instagram publish is verified and never sent a second time", (
   const calls: string[] = [];
   class FixtureClient extends StagingFixtureClient {
     override async verifyAccount(a: Account) { return a; }
-    override async execute(_a: Account, slug: string, args: Record<string, unknown>) { calls.push(slug); if (slug === "INSTAGRAM_POST_IG_USER_MEDIA") { assert.equal(s.list(owner)[0].destinations[0].checkpoint.stagedFileId, "file_fixture"); assert.equal((args.video_file as { s3key: string }).s3key, "private-fixture-key"); assert.equal("video_url" in args, false); return { id: "456" }; } if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { "456": { id: "456", status_code: "FINISHED" } }; throw new ProviderFault("TIMEOUT", "Fixture timeout", "ambiguous"); }
+    override async execute(_a: Account, slug: string, args: Record<string, unknown>) { calls.push(slug); if (slug === "INSTAGRAM_POST_IG_USER_MEDIA") { assert.equal(s.list(owner)[0].destinations[0].checkpoint.stagedFileId, "file_fixture"); assert.equal((args.video_file as { s3key: string }).s3key, "private-fixture-key"); assert.equal("video_url" in args, false); return { id: "456" }; } if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { objects: { "456": { id: "456", status_code: "FINISHED" } } }; throw new ProviderFault("TIMEOUT", "Fixture timeout", "ambiguous"); }
   }
   const publisher = new Publisher(s, new FixtureClient(loadPublishingConfig("/tmp", {})), { open: async () => ({ absolutePath: "/fixture.mp4", release: async () => {} }), videoUrl: async () => "https://fixture.invalid/video", coverUrl: async () => "https://fixture.invalid/cover" });
   await publisher.dispatch(s.claim()!); advance(60_001); await publisher.dispatch(s.claim()!); advance(60_001); await publisher.dispatch(s.claim()!);
@@ -221,7 +221,7 @@ test("a manual Check result never initiates a new public publication", () => fix
   let publishes = 0;
   class FixtureClient extends StagingFixtureClient {
     override async verifyAccount(a: Account) { return a; }
-    override async execute(_a: Account, slug: string) { if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { "456": { id: "456", status_code: "FINISHED" } }; publishes++; return { id: "789" }; }
+    override async execute(_a: Account, slug: string) { if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { objects: { "456": { id: "456", status_code: "FINISHED" } } }; publishes++; return { id: "789" }; }
   }
   const publisher = new Publisher(s, new FixtureClient(loadPublishingConfig("/tmp", {})), { open: async () => ({ absolutePath: "/fixture", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" });
   await publisher.dispatch(s.claim()!); assert.equal(publishes, 0); assert.equal(s.get(owner, p.id).destinations[0].error?.code, "READY_TO_RETRY");
@@ -275,4 +275,18 @@ test("a definite Pin scope rejection retains uploaded media and waits for renewe
   const publisher = new Publisher(s, client, { open: async () => ({ absolutePath: "/fixture.mp4", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" }); await publisher.dispatch(s.claim()!);
   const d = s.get(owner, post.id).destinations[0]; assert.equal(d.state, "failed"); assert.equal(d.error?.code, "RECONNECT_REQUIRED"); assert.equal(d.error?.retryable, true); assert.equal(d.activeOperation, null); assert.equal(d.checkpoint.uploadId, "456"); assert.throws(() => s.retry(owner, post.id, d.id), /Reconnect/);
   s.putAccount(account("pin", "pinterest")); assert.equal(s.retry(owner, post.id, d.id).destinations[0].checkpoint.uploadId, "456");
+}));
+test("the live Instagram objects status wrapper advances a finished container to one verified publication", () => fixture(async (s) => {
+  const post = s.create(owner, media, [destination()], resolveSchedule({ mode: "now" }, 1_800_000_000_000), "instagram-objects-status"), prepared = s.claim()!; s.release(prepared.destination.id, prepared.token, { state: "processing", checkpoint: { containerId: "456" }, delayMs: 0 }); let publishes = 0;
+  class Client extends ComposioClient {
+    override async verifyAccount(a: Account) { return a; }
+    override async execute(_a: Account, slug: string) {
+      if (slug === "INSTAGRAM_GET_MULTIPLE_NODES") return { objects: { "456": { id: "456", status_code: "FINISHED" } } };
+      if (slug === "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") { publishes++; return { id: "789" }; }
+      if (slug === "INSTAGRAM_GET_IG_MEDIA") return { id: "789", permalink: "https://www.instagram.com/reel/fixture/" };
+      throw Error("Unexpected fixture action");
+    }
+  }
+  const publisher = new Publisher(s, new Client(loadPublishingConfig("/tmp", {})), { open: async () => ({ absolutePath: "/fixture.mp4", release: async () => {} }), videoUrl: async () => "", coverUrl: async () => "" }); await publisher.dispatch(s.claim()!); await publisher.dispatch(s.claim()!);
+  const d = s.get(owner, post.id).destinations[0]; assert.equal(publishes, 1); assert.equal(d.state, "published"); assert.equal(d.checkpoint.postId, "789"); assert.equal(d.checkpoint.permalink, "https://www.instagram.com/reel/fixture/");
 }));

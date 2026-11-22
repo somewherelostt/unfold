@@ -78,7 +78,7 @@ export class Publisher {
           release("processing", checkpoint); return;
         }
         const nodes = await this.client.execute(account, "INSTAGRAM_GET_MULTIPLE_NODES", { object_ids: [cp.containerId], fields: "id,status_code,status" }, false);
-        const container = object(nodes[cp.containerId]);
+        const container = object(object(nodes.objects)[cp.containerId]);
         if (container.id !== cp.containerId || typeof container.status_code !== "string") throw new ProviderFault("STATUS_UNAVAILABLE", "Instagram’s processing status is temporarily unavailable.", "read_failed", true);
         if (d.activeOperation) {
           // FINISHED after a timeout is not proof that a prior publish was rejected. Never re-publish it.
