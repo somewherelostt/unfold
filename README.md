@@ -293,12 +293,3 @@ Unfold was built for the [Cerebras × Kimi K3.1 Pro hackathon](https://luma.com/
 ## The creator
 
 **Maaz** · [GitHub](https://github.com/somewherelostt) · [X / @maaztwts](https://x.com/maaztwts)
-
-<details>
-<summary>About the images</summary>
-
-The reel previews and promotional panels are design examples composed with Unfold’s caption renderer, third-party stills and illustrative sample text. They show portrait layouts, typography and draft editing directions. Creator names identify the source material only; no endorsement is implied.
-
-The editor preview uses [coastal footage](https://www.pexels.com/video/dynamic-ocean-waves-captured-from-above-29285421/) and manual controls. Caption specimens use illustrative sample text. Neither is a live generation benchmark.
-
-</details>
