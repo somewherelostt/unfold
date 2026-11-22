@@ -7,3 +7,6 @@ export * from "./process.ts";
 export * from "./retention.ts";
 export * from "./config.ts";
 export * from "./health.ts";
+export { PostgresJobStore } from "./postgres-store.ts";
+export { createJobQueue, type JobQueue } from "./factory.ts";
+export { CloudJobWorker } from "./cloud-worker.ts";

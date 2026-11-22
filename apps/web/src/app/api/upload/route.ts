@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/server";
 import { storage } from "@/server/store";
 import { apiError } from "@/server/api-errors";
 import { StorageError, type PrivateAsset } from "@/server/private-storage";
+import { isSupabaseStorage } from "@/server/supabase-storage";
 
 const MAX_BYTES = 500 * 1024 * 1024;
 const VIDEO_EXT = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
@@ -13,6 +14,7 @@ const VIDEO_EXT = new Set([".mp4", ".mov", ".m4v", ".webm", ".mkv"]);
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (isSupabaseStorage(storage)) return Response.json({ error: "Use the direct video upload to continue." }, { status: 415 });
   try {
     const form = await req.formData();
     const file = form.get("file");

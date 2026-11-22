@@ -27,7 +27,7 @@ export function loadJobConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConf
   };
   // Bundlers interpret new URL(directory, import.meta.url) as an asset import. Resolve the
   // checkout from a trusted explicit root or cwd ancestors for web/worker CLI entry points.
-  let repoRoot = env.UNFOLD_REPO_ROOT ? absolute(env.UNFOLD_REPO_ROOT, "UNFOLD_REPO_ROOT") : path.resolve(process.cwd());
+  let repoRoot = env.UNFOLD_REPO_ROOT ? absolute(env.UNFOLD_REPO_ROOT, "UNFOLD_REPO_ROOT") : path.resolve(/* turbopackIgnore: true */ process.cwd());
   while (!existsSync(path.join(repoRoot, "services/jobs/package.json")) || !existsSync(path.join(repoRoot, "packages/core/package.json"))) {
     const parent = path.dirname(repoRoot);
     if (env.UNFOLD_REPO_ROOT || parent === repoRoot) throw new JobFault("INVALID_CONFIG", "Set UNFOLD_REPO_ROOT to the absolute Unfold checkout path.");

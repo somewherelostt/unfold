@@ -13,6 +13,7 @@ export const maxDuration = 120;
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") return Response.json({error:"Use the background workflow to continue."},{status:409});
   try {
     const { planId, message, editPlan } = await req.json().catch(() => ({})) as { planId?: string; message?: string; editPlan?: unknown };
     if (typeof planId !== "string" || typeof message !== "string" || !message.trim() || message.length > 8000) throw new StorageError(400, "planId and message are required.");

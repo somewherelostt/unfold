@@ -4,6 +4,7 @@ import { actions, useStore } from "@/lib/client/store";
 import { Button } from "@/components/ui/Button";
 import { IconCheck, IconMedia, IconUpload, IconX } from "@/components/ui/icons";
 import { Shimmer } from "@/components/ui/Shimmer";
+import {UPLOAD_LIMIT_BYTES,UPLOAD_LIMIT_LABEL} from '@/lib/client/upload-limit';
 
 export function SourceUpload({ onAttach, disabled }: { onAttach: (file: File | null) => void; disabled?: boolean }) {
   const project = useStore((s) => s.project);
@@ -15,6 +16,7 @@ export function SourceUpload({ onAttach, disabled }: { onAttach: (file: File | n
   function choose(file: File | undefined) {
     if (!file || disabled) return;
     if (!file.type.startsWith("video/")) return setError("Choose a video file for your main clip.");
+    if (file.size>UPLOAD_LIMIT_BYTES) return setError(`Choose a video smaller than ${UPLOAD_LIMIT_LABEL}.`);
     setError("");
     onAttach(file);
   }
@@ -47,7 +49,7 @@ export function SourceUpload({ onAttach, disabled }: { onAttach: (file: File | n
       <span className="uf-upload-icon"><IconUpload size={24} /></span>
       <span className="uf-upload-title">Upload your main clip</span>
       <span className="mt-1 text-[13px] leading-5 text-text-2">Drop a video here, or browse files</span>
-      <span className="uf-upload-limits">Vertical or wide · up to 3 min · 500 MB</span>
+      <span className="uf-upload-limits">Vertical or wide · up to 3 min · {UPLOAD_LIMIT_LABEL}</span>
     </button>}
     {(error || project.analyzeError) && <div role="alert" className="uf-status-card" data-tone="error"><p>{error || project.analyzeError}</p>{project.videoId && <Button size="sm" variant="secondary" disabled={project.analyzing} onClick={() => void actions.retryAnalyze()}>Retry analysis</Button>}</div>}
   </div>;

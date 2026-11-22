@@ -1,5 +1,5 @@
 import {
-  JobFault, JobStore, encodeJobEvent, isJobFault, isTerminal, loadJobConfig, watchJob,
+  JobFault, createJobQueue, encodeJobEvent, isJobFault, isTerminal, watchJob, type JobQueue,
 } from "@unfold/jobs";
 import type { EditPlan, MediaAnalysis } from "@unfold/core";
 import { contentFingerprint, isStorageFailure, readJobResult, type RenderSnapshot } from "./job-bindings.ts";
@@ -11,7 +11,7 @@ export type ClientJobRequest = { kind: "analysis"; videoId: string; idempotencyK
 };
 export type JobsDependencies = {
   storage: PrivateStorage;
-  queue: JobStore;
+  queue: JobQueue;
   loadPlan: (owner: Owner, id: string) => Promise<StoredPlan>;
   prepareRender: (owner: Owner, saved: StoredPlan, body: Extract<ClientJobRequest, { kind: "render" }>) => Promise<{ plan: EditPlan; analysis: MediaAnalysis }>;
 };
@@ -35,7 +35,7 @@ export const jobJson = (value: unknown, status = 200) => Response.json(value, { 
 export function createJobsApi(dependencies: JobsDependencies) {
   const { queue, storage } = dependencies;
   const lookup = async (owner: Owner, id: string) => {
-    const found = queue.getForOwner(owner.id, id);
+    const found = await queue.getForOwner(owner.id, id);
     await storage.getProject(owner, found.context.projectId);
     if (isTerminal(found.job.state)) await storage.unregisterJob(owner, found.context.projectId, id);
     return found;
@@ -71,18 +71,18 @@ export function createJobsApi(dependencies: JobsDependencies) {
           input = { kind: "plan", id: immutable.id, revision: immutable.revision };
         }
         // No automatic retry of published output or paid generation. A new click is an explicit new job.
-        const result = queue.enqueue(context, { kind: body.kind, input, idempotencyKey: body.idempotencyKey }, { id: jobId });
+        const result = await queue.enqueue(context, { kind: body.kind, input, idempotencyKey: body.idempotencyKey }, { id: jobId });
         if (isTerminal(result.job.state)) await storage.unregisterJob(owner, projectId, jobId);
         return result;
       } catch (error) {
-        try { const prior = queue.getForOwner(owner.id, jobId); if (isTerminal(prior.job.state)) await storage.unregisterJob(owner, projectId, jobId); }
+        try { const prior = await queue.getForOwner(owner.id, jobId); if (isTerminal(prior.job.state)) await storage.unregisterJob(owner, projectId, jobId); }
         catch (lookupError) { if (isJobFault(lookupError) && lookupError.code === "NOT_FOUND") await storage.unregisterJob(owner, projectId, jobId); }
         throw error;
       } finally { await release(); }
     },
     async get(owner: Owner, id: string) { return (await lookup(owner, id)).job; },
     async cancel(owner: Owner, id: string) {
-      const { context } = await lookup(owner, id); const job = queue.cancel(context, id);
+      const { context } = await lookup(owner, id); const job = await queue.cancel(context, id);
       if (isTerminal(job.state)) await storage.unregisterJob(owner, context.projectId, id);
       return job;
     },
@@ -113,7 +113,7 @@ export function createJobsApi(dependencies: JobsDependencies) {
       const contexts = [];
       for (const id of ids) {
         let found;
-        try { found = queue.getForOwner(owner.id, id); }
+        try { found = await queue.getForOwner(owner.id, id); }
         catch (error) {
           if (!isJobFault(error) || error.code !== "NOT_FOUND") throw error;
           // A crash after storage preregistration but before SQLite enqueue cannot own execution.
@@ -123,14 +123,14 @@ export function createJobsApi(dependencies: JobsDependencies) {
         if (found.context.projectId !== projectId) throw new JobFault("NOT_FOUND", "Job not found.", 404);
         contexts.push(found);
       }
-      for (const found of contexts) queue.cancel(found.context, found.job.id);
+      for (const found of contexts) await queue.cancel(found.context, found.job.id);
       const deadline = Date.now() + timeoutMs;
       for (;;) {
-        if (contexts.every((found) => isTerminal(queue.get(found.context, found.job.id).state))) break;
+        if ((await Promise.all(contexts.map(async (found) => isTerminal((await queue.get(found.context, found.job.id)).state)))).every(Boolean)) break;
         if (Date.now() > deadline) throw new JobFault("JOBS_DRAINING", "Project work is still stopping. Try again shortly.", 409);
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
-      for (const found of contexts) { await storage.unregisterJob(owner, projectId, found.job.id); queue.releaseOutput(found.context, found.job.id); }
+      for (const found of contexts) { await storage.unregisterJob(owner, projectId, found.job.id); await queue.releaseOutput(found.context, found.job.id); }
     },
   };
 }
@@ -141,8 +141,7 @@ export async function getJobsApi() {
   const { storage, store, getLibrary } = await import("./store");
   const { trustedPlanInputs } = await import("./plan-access");
   const { ExportRequest, prepareExportPlan } = await import("./export-plan");
-  const config = loadJobConfig();
-  defaultApi = createJobsApi({ storage, queue: new JobStore(config), loadPlan: store.getPlan,
+  defaultApi = createJobsApi({ storage, queue: createJobQueue(), loadPlan: store.getPlan,
     prepareRender: async (owner, saved, request) => {
       const parsed = ExportRequest.safeParse(request);
       if (!parsed.success) throw new StorageError(400, "Invalid export settings or edit plan.");

@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { requireUser } from "@/lib/auth/server";
 import { storage } from "@/server/store";
 import { apiError } from "@/server/api-errors";
+import { isSupabaseStorage } from "@/server/supabase-storage";
 
 const TYPES: Record<string, string> = { ".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".json": "application/json", ".mp3": "audio/mpeg", ".wav": "audio/wav" };
 
@@ -13,6 +14,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
   try {
     const { path: parts } = await ctx.params;
     const token = new URL(req.url).searchParams.get("render");
+    if (isSupabaseStorage(storage)) {
+      let key: string;
+      if (token) key = (await storage.renderMediaEntry(parts, token)).object_key;
+      else {
+        const user = await requireUser();
+        if (user instanceof Response) return user;
+        key = (await storage.entryForMedia(user, parts)).object_key;
+      }
+      const location = await storage.blobs.signedRead(key, 120);
+      return new Response(null, { status: 307, headers: { Location: location, "Cache-Control": "private, no-store", Vary: "Cookie", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
+    }
     let file: string;
     if (token) file = await storage.renderMediaPath(parts, token);
     else {

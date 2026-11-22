@@ -12,6 +12,7 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") return Response.json({error:"Use the background workflow to continue."},{status:409});
   try {
     const multipart = (req.headers.get("content-type") ?? "").includes("multipart/form-data");
     const form = multipart ? await req.formData() : null;

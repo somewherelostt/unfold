@@ -1,0 +1,10 @@
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ffmpeg && rm -rf /var/lib/apt/lists/* \
+ && npm install --global pnpm@12.14.0
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile && chown -R node:node /app
+WORKDIR /app/apps/web
+ENV HOME=/home/node NODE_ENV=production UNFOLD_CLOUD_WORKER=1 UNFOLD_REPO_ROOT=/app UNFOLD_DATA_DIR=/tmp/unfold-data TSX_TSCONFIG_PATH=/app/apps/web/tsconfig.json
+USER node
+CMD ["node","--import","../../packages/video/node_modules/tsx/dist/loader.mjs","../../services/publishing/scripts/cloud-worker.mts"]

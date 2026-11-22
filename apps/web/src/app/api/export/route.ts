@@ -15,6 +15,7 @@ let rendering = false;
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") return Response.json({error:"Use the background workflow to continue."},{status:409});
   let ownsRenderLock = false;
   const releaseRenderLock = () => {
     if (!ownsRenderLock) return;

@@ -1,0 +1,30 @@
+FROM node:24-bookworm-slim AS whisper
+RUN apt-get update && apt-get install -y --no-install-recommends git cmake build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp.git /src \
+ && test "$(git -C /src rev-parse HEAD)" = d1be6fde11ac6e0407606b4e42fe72d34add8037 \
+ && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
+ && cmake --build /src/build --config Release --target whisper-cli -j2
+
+FROM node:24-bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg python3 python3-pip git build-essential \
+ libnss3 libatk-bridge2.0-0 libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libgtk-3-0 fonts-liberation fonts-noto-core fonts-noto-cjk \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=oven/bun:1.3.14 /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=whisper /src/build/bin/whisper-cli /usr/local/bin/whisper-cli
+RUN npm install --global pnpm@12.14.0 openclaw@2026.11.6 \
+ && pip3 install --no-cache-dir --break-system-packages yt-dlp==2026.10.26
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile \
+ && mkdir -p services/media/models \
+ && curl --fail --location --retry 3 https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin -o services/media/models/ggml-base.en.bin \
+ && echo 'a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002  services/media/models/ggml-base.en.bin' | sha256sum -c - \
+ && curl --fail --location --retry 3 https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o services/media/models/ggml-base.bin \
+ && echo '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe  services/media/models/ggml-base.bin' | sha256sum -c -
+WORKDIR /app/apps/web
+RUN node -e 'require("../../packages/video/node_modules/@remotion/renderer").ensureBrowser().then(b=>{if(!b.path)throw Error("Browser installation failed");require("node:fs").writeFileSync("/opt/unfold-browser-path",b.path)})'
+ENV HOME=/home/node NODE_ENV=production UNFOLD_CLOUD_WORKER=1 UNFOLD_REPO_ROOT=/app UNFOLD_DATA_DIR=/tmp/unfold-data UNFOLD_JOBS_ARTIFACTS=/tmp/unfold-jobs UNFOLD_JOBS_REQUIRE_GATEWAY=false TSX_TSCONFIG_PATH=/app/apps/web/tsconfig.json
+RUN mkdir -p /tmp/unfold-data /tmp/unfold-jobs && chown -R node:node /app /tmp/unfold-data /tmp/unfold-jobs
+USER node
+CMD ["node","--conditions=react-server","--import","../../packages/video/node_modules/tsx/dist/loader.mjs","../../services/jobs/scripts/cloud-worker.mts"]

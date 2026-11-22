@@ -14,6 +14,7 @@ const Input = z.object({ videoId: z.string(), prompt: z.string().max(8000).defau
 export async function POST(req: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;
+  if (process.env.NEXT_PUBLIC_UNFOLD_BACKEND === "supabase") return Response.json({error:"Use the background workflow to continue."},{status:409});
   try {
     const body = Input.safeParse(await req.json().catch(() => null));
     if (!body.success) throw new StorageError(400, "Invalid generation request.");

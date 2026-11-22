@@ -4,10 +4,20 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import { PrivateStorage, type Owner } from "../private-storage.ts";
+import { isSupabaseStorage } from '../supabase-storage.ts';
 import { ID, PublishingError, type CompletedExport, type CompletedExportRef, type MediaProperties } from "../../../../../services/publishing/src/types.ts";
 const execute = promisify(execFile);
 export type ResolvedExport = CompletedExport & { absolutePath: string };
 export function publicExport(value: ResolvedExport): CompletedExport { return { ref: value.ref, mediaContentSha256: value.mediaContentSha256, properties: value.properties, previewUrl: value.previewUrl, ...(value.settings ? { settings: value.settings } : {}), ...(value.renderedPlanFingerprint ? { renderedPlanFingerprint: value.renderedPlanFingerprint } : {}) }; }
+/** Serverless inspection reads a completed worker receipt; only dispatch materializes video. */
+export async function inspectCompletedExport(storage:PrivateStorage,owner:Owner,value:CompletedExportRef,ffprobe='ffprobe'):Promise<CompletedExport>{
+ const ref=parseExportRef(value);
+ if(!isSupabaseStorage(storage))return publicExport(await resolveCompletedExport(storage,owner,ref,ffprobe));
+ const entry=await storage.entryForMedia(owner,[ref.projectId,'exports',ref.fileKey]);
+ const p=entry.properties as MediaProperties|null;
+ if(!p||p.mime!=='video/mp4'||![p.bytes,p.duration,p.width,p.height,p.fps].every(n=>typeof n==='number'&&Number.isFinite(n)&&n>0)||!entry.completed||!/^([a-f0-9]{64})$/.test(entry.sha256)||p.bytes!==Number(entry.bytes))throw new PublishingError('INVALID_EXPORT','Choose a completed, inspected MP4 export.',409);
+ return{ref,mediaContentSha256:entry.sha256,properties:p,previewUrl:`/media/${ref.projectId}/exports/${ref.fileKey}`};
+}
 export function parseExportRef(value: unknown): CompletedExportRef {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => !["projectId", "fileKey"].includes(key))) throw new PublishingError("INVALID_EXPORT", "Choose a completed video export.");
   const v = value as CompletedExportRef;
@@ -44,7 +54,10 @@ export async function resolveCompletedExport(storage: PrivateStorage, owner: Own
 export async function listCompletedExports(storage: PrivateStorage, owner: Owner) {
   const projects = await storage.listProjects(owner), result: { ref: CompletedExportRef; title: string; previewUrl: string; createdAt: number; bytes: number }[] = [];
   for (const p of projects.slice(0, 100)) for (const fileKey of p.exports.filter((key) => /^[A-Za-z0-9_-]{1,100}\.mp4$/.test(key)).slice(-20)) {
-    try { const { info } = await ownedExportPath(storage, owner, { projectId: p.id, fileKey }); result.push({ ref: { projectId: p.id, fileKey }, title: p.title, previewUrl: `/media/${p.id}/exports/${fileKey}`, createdAt: info.mtimeMs, bytes: info.size }); } catch { /* Deleted/incomplete resources are never offered. */ }
+    try {
+      if(isSupabaseStorage(storage)){const entry=await storage.entryForMedia(owner,[p.id,'exports',fileKey]);if(!entry.properties)continue;result.push({ref:{projectId:p.id,fileKey},title:p.title,previewUrl:`/media/${p.id}/exports/${fileKey}`,createdAt:Number(entry.created_at),bytes:Number(entry.bytes)});}
+      else { const { info } = await ownedExportPath(storage, owner, { projectId: p.id, fileKey }); result.push({ ref: { projectId: p.id, fileKey }, title: p.title, previewUrl: `/media/${p.id}/exports/${fileKey}`, createdAt: info.mtimeMs, bytes: info.size }); }
+    } catch { /* Deleted/incomplete resources are never offered. */ }
   }
   return result.sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
 }
