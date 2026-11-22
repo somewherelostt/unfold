@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileEditPlan, mapSrcToOut, sampleAgentPlans, sampleAnalysis, sampleLibrary } from "@unfold/core";
-import { generateVariants, normalizePlan } from "../src/agent";
+import { analyzeStyle, generateVariants, normalizePlan } from "../src/agent";
+import { describeClip, describeStyle } from "../src/prompt";
 
 const context = { analysis: sampleAnalysis, library: sampleLibrary };
 
@@ -119,4 +120,38 @@ test("captions follow every occurrence of a source line reused as a cold open", 
     { text: "A", start: 1.2 },
     { text: "result.", start: 5.2 },
   ]);
+});
+
+test("the planner receives word endings and repairs partial-word boundaries", () => {
+  const analysis = { ...sampleAnalysis, words: [
+    { text: "heights.", start: 3.36, end: 3.96 },
+    { text: "Teamwork", start: 3.96, end: 4.44 },
+    { text: "matters.", start: 4.44, end: 5.28 },
+  ] };
+  assert.match(describeClip(analysis), /3\.96-4\.44 Teamwork/);
+  const request = { segments: [{ srcStart: 3.9, srcEnd: 4.7, speed: 1 }] };
+  const normalized = normalizePlan(request, { ...context, analysis });
+  assert.deepEqual(normalized.segments, [{ srcStart: 3.96, srcEnd: 5.28, speed: 1 }]);
+  const edit = compileEditPlan(normalized, analysis, sampleLibrary);
+  assert.deepEqual(edit.captions.chunks.flatMap((c) => c.words.map((w) => w.text)), ["Teamwork", "matters."]);
+  assert.deepEqual(normalizePlan(request, { ...context, analysis: { ...analysis, hasSpeech: false } }).segments, request.segments);
+});
+
+test("visual references cannot manufacture music or sound-effect evidence", async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const chunk = { choices: [{ delta: { content: JSON.stringify({ sfxDensityPerMin: 8, musicEnergy: 1, musicMoods: ["hype"] }) } }] };
+    return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, { headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const { profile } = await analyzeStyle({ ...sampleAnalysis, frames: [] }, async () => "", { cutsPerMinute: 5, avgShotSec: 12 }, { url: "https://agent-test.invalid", token: "test", agentId: "test" });
+    assert.deepEqual([profile.sfxDensityPerMin, profile.musicEnergy, profile.musicMoods], [0, 0, []]);
+    assert.equal(profile.captions.preset, "clean-pop");
+    assert.equal(profile.captions.uppercase, false);
+    assert.equal(profile.zoomIntensity, 0);
+    assert.match(describeStyle(profile), /Reference audio was not inspected/);
+    assert.doesNotMatch(describeStyle(profile), /music energy|SFX \d/);
+  } finally {
+    globalThis.fetch = previous;
+  }
 });

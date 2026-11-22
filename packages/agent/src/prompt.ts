@@ -2,7 +2,7 @@ import type { Library, MediaAnalysis, StyleProfile, AgentPlan } from "@unfold/co
 
 /** JSON shape the model must return (kept short: it's sent with every request). */
 export const AGENT_PLAN_SHAPE = `{
-  "title": string (2-3 words, e.g. "Chaos cut"),
+  "title": string (2-3 words, e.g. "A fresh start"),
   "style": "gaming-montage"|"podcast-clip"|"storytime"|"chaos"|"custom",
   "rationale": string (one sentence),
   "aspect": "9:16"|"1:1"|"16:9",
@@ -17,10 +17,11 @@ export const AGENT_PLAN_SHAPE = `{
 }`;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Compact, cache-friendly description of the clip. Identical for every variant so the prefix is cached. */
 export function describeClip(a: MediaAnalysis): string {
-  const words = a.words.map((w) => `${r1(w.start)} ${w.text}`).join(" | ");
+  const words = a.words.map((w) => `${r2(w.start)}-${r2(w.end)} ${w.text}`).join(" | ");
   const scenes = a.scenes.map((s) => `${r1(s.start)}-${r1(s.end)}`).join(", ");
   const peaks = [...a.loudness]
     .sort((x, y) => y.db - x.db)
@@ -32,7 +33,7 @@ export function describeClip(a: MediaAnalysis): string {
     `CLIP: ${r1(a.durationSec)}s, ${a.width}x${a.height}, speech: ${a.hasSpeech ? "yes" : "no"}`,
     `SCENES (src seconds): ${scenes || "none detected"}`,
     `LOUDEST MOMENTS: ${peaks || "n/a"}`,
-    a.hasSpeech ? `TRANSCRIPT (start-second word): ${words}` : "TRANSCRIPT: none (gameplay/no speech). Use frames, scenes and loudness to find moments.",
+    a.hasSpeech ? `TRANSCRIPT (start-end seconds, word): ${words}` : "TRANSCRIPT: none (gameplay/no speech). Use frames, scenes and loudness to find moments.",
     `FRAMES: ${a.frames.length} images attached in time order at seconds ${a.frames.map((f) => r1(f.t)).join(", ")}`,
   ].join("\n");
 }
@@ -50,8 +51,8 @@ export function describeStyle(p: StyleProfile): string {
     `REFERENCE STYLE (adapt its techniques to this footage and brief): ${p.summary}`,
     `- pacing: ${r1(p.cutsPerMinute)} cuts/min, avg shot ${r1(p.avgShotSec)}s`,
     `- captions: ${p.captions.preset}, ${p.captions.wordsPerChunk} words/chunk, ${p.captions.position}, ${p.captions.uppercase ? "UPPERCASE" : "sentence case"}, highlight ${p.captions.highlightColor}`,
-    `- transitions: ${p.transitions.join(", ")}; zoom intensity ${r1(p.zoomIntensity)}; SFX ${r1(p.sfxDensityPerMin)}/min`,
-    `- music energy ${r1(p.musicEnergy)}, moods ${p.musicMoods.join(", ")}`,
+    `- transitions: ${p.transitions.join(", ") || "none observed"}; zoom intensity ${r1(p.zoomIntensity)}`,
+    "- Reference audio was not inspected. Choose music and SFX from the current footage and brief, independently of this visual profile.",
   ].join("\n");
 }
 
@@ -60,7 +61,7 @@ export const ADAPTIVE_DIRECTION = "Adaptive edit: infer whether this is a produc
 const EDITORIAL_RULES = `Editorial priorities:
 - The creator's brief takes priority over optional variant suggestions. Adapt reference techniques to this footage; do not copy its claims, words or unrelated visuals.
 - Identify the story before decorating it. For product content, use a relevant problem, actual demonstration or proof, and an honest benefit; add a call to action only if requested or present in the footage. For organic content, preserve the creator's voice, setup, reaction and payoff. Never invent claims or outcomes.
-- Keep complete spoken thoughts and useful pauses. Default speech speed is 1. Do not force cuts onto every music beat or sacrifice a sentence for a beat.
+- Keep complete spoken thoughts and useful pauses. Choose source ranges using both word starts and ends; keep the final word through its end, and finish the selected thought. Default speech speed is 1. Do not force cuts onto every music beat or sacrifice a sentence for a beat.
 - Captions transcribe the supplied speech. Start with readable sentence-case phrases in a safe area; use bold animations and frequent word emphasis only when the brief or footage warrants them. Do not cover the subject or product.
 - Music is optional: return null when silence or original sound works better. If useful, start with a quiet instrumental bed under dialogue (about 0.08-0.16 volume), matched to the mood. Volume is a gain setting, not a loudness guarantee. Beat snapping is optional and defaults off.
 - Effects need a visible or audible reason. Prefer clean cuts; empty transitions, zooms, sfx and overlays arrays are valid. Never meet an effect quota. Keep sound effects sparse and below important speech. Do not add a hook title if the opening already communicates it.
@@ -144,7 +145,7 @@ export function styleRequest(reference: MediaAnalysis, frameDataUrls: string[], 
     {
       role: "system",
       content:
-        'You analyse short-form videos and describe their editing style. Reply with one JSON object only: {"summary": string, "cutsPerMinute": number, "avgShotSec": number, "captions": {"preset": "bold-pop"|"clean-pop"|"meme"|"story"|"karaoke", "wordsPerChunk": 1-5, "position": "upper"|"center"|"lower", "uppercase": boolean, "highlightColor": "#RRGGBB"}, "transitions": [types], "zoomIntensity": 0-1, "sfxDensityPerMin": number, "musicEnergy": 0-1, "musicMoods": [string]}',
+        'You analyse short-form videos and describe observed visual editing choices. Only sampled frames, transcript and scene measurements are provided; the audio itself is not. Do not claim to hear music or sound effects. Return sfxDensityPerMin: 0, musicEnergy: 0 and musicMoods: [] as unknown placeholders. Do not invent transitions between sparse frames. Reply with one JSON object only: {"summary": string, "cutsPerMinute": number, "avgShotSec": number, "captions": {"preset": "bold-pop"|"clean-pop"|"meme"|"story"|"karaoke", "wordsPerChunk": 1-5, "position": "upper"|"center"|"lower", "uppercase": boolean, "highlightColor": "#RRGGBB"}, "transitions": [types], "zoomIntensity": 0-1, "sfxDensityPerMin": number, "musicEnergy": 0-1, "musicMoods": [string]}',
     },
     {
       role: "user",

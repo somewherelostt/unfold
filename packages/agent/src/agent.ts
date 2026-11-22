@@ -32,6 +32,16 @@ async function frameInputs(ctx: AgentContext): Promise<{ analysis: MediaAnalysis
   return { analysis: { ...ctx.analysis, frames: loaded.map((item) => item.frame) }, urls: loaded.map((item) => item.url) };
 }
 
+/** Repair a model cut inside a known word without changing the chosen story. */
+function speechRange(srcStart: number, srcEnd: number, analysis: MediaAnalysis) {
+  if (!analysis.hasSpeech) return { srcStart, srcEnd };
+  const first = analysis.words.find((w) => w.start < srcStart && w.end > srcStart);
+  const last = analysis.words.find((w) => w.start < srcEnd && w.end > srcEnd);
+  if (first) srcStart = srcStart - first.start <= first.end - srcStart ? first.start : first.end;
+  if (last) srcEnd = Math.min(analysis.durationSec, last.end);
+  return { srcStart, srcEnd };
+}
+
 /** Make a model reply valid: fill defaults, clamp ranges, drop unknown asset ids. */
 export function normalizePlan(raw: unknown, ctx: { analysis: MediaAnalysis; library: Library }): AgentPlan {
   const r = (raw ?? {}) as any;
@@ -51,8 +61,7 @@ export function normalizePlan(raw: unknown, ctx: { analysis: MediaAnalysis; libr
     hookText: typeof r.hookText === "string" && r.hookText.trim() ? r.hookText.trim() : null,
     segments: segs
       .map((s: any) => ({
-        srcStart: clamp(s?.srcStart, 0, dur, 0),
-        srcEnd: clamp(s?.srcEnd, 0, dur, dur),
+        ...speechRange(clamp(s?.srcStart, 0, dur, 0), clamp(s?.srcEnd, 0, dur, dur), ctx.analysis),
         speed: clamp(s?.speed, 0.5, 2, 1),
       }))
       .filter((s: any) => s.srcEnd - s.srcStart > 0.2),
@@ -172,23 +181,24 @@ export async function analyzeStyle(
   const { text, stats: s } = await streamChat(styleRequest(frames.analysis, frames.urls, stats), cfg);
   const raw = extractJson(text) as any;
   const profile = StyleProfile.parse({
-    summary: String(raw.summary ?? "Fast-paced short-form edit"),
+    summary: String(raw.summary ?? "Reference visual style"),
     cutsPerMinute: Number(raw.cutsPerMinute ?? stats.cutsPerMinute),
     avgShotSec: Number(raw.avgShotSec ?? stats.avgShotSec),
     captions: {
-      preset: ["bold-pop", "clean-pop", "meme", "story", "karaoke"].includes(raw.captions?.preset) ? raw.captions.preset : "bold-pop",
-      wordsPerChunk: Math.min(5, Math.max(1, Math.round(Number(raw.captions?.wordsPerChunk ?? 2)))),
-      position: ["upper", "center", "lower"].includes(raw.captions?.position) ? raw.captions.position : "center",
-      uppercase: raw.captions?.uppercase !== false,
+      preset: ["bold-pop", "clean-pop", "meme", "story", "karaoke"].includes(raw.captions?.preset) ? raw.captions.preset : "clean-pop",
+      wordsPerChunk: Math.min(5, Math.max(1, Math.round(Number(raw.captions?.wordsPerChunk ?? 4)))),
+      position: ["upper", "center", "lower"].includes(raw.captions?.position) ? raw.captions.position : "lower",
+      uppercase: raw.captions?.uppercase === true,
       highlightColor: /^#[0-9a-f]{6}$/i.test(raw.captions?.highlightColor ?? "") ? raw.captions.highlightColor : "#FFE14D",
     },
     transitions: (Array.isArray(raw.transitions) ? raw.transitions : []).filter((t: string) =>
       ["cut", "whip", "zoom-punch", "flash", "shake", "glitch", "slide"].includes(t),
     ),
-    zoomIntensity: Math.min(1, Math.max(0, Number(raw.zoomIntensity ?? 0.5))),
-    sfxDensityPerMin: Math.max(0, Number(raw.sfxDensityPerMin ?? 4)),
-    musicEnergy: Math.min(1, Math.max(0, Number(raw.musicEnergy ?? 0.7))),
-    musicMoods: Array.isArray(raw.musicMoods) ? raw.musicMoods.map(String).slice(0, 5) : ["hype"],
+    zoomIntensity: Math.min(1, Math.max(0, Number(raw.zoomIntensity ?? 0))),
+    // Audio is not sent to this analysis call; these fields remain neutral for compatibility.
+    sfxDensityPerMin: 0,
+    musicEnergy: 0,
+    musicMoods: [],
   });
   return { profile, stats: s };
 }
