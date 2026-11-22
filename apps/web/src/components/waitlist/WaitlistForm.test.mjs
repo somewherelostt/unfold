@@ -7,13 +7,13 @@ const require=createRequire(import.meta.url),ts=require('typescript');
 const source=readFileSync(new URL('./WaitlistForm.tsx',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 function fixture(fetcher){
- const hooks=[],requests=[],module={exports:{}};let cursor=0;
+ const hooks=[],requests=[],loaded={exports:{}};let cursor=0;
  const jsx=(type,props)=>({type,props:props??{}});
- vm.runInNewContext(compiled,{module,exports:module.exports,
+ vm.runInNewContext(compiled,{module:loaded,exports:loaded.exports,
   FormData:class{constructor(value){this.value=value;}get(key){return this.value[key]??null;}},
   fetch:async(url,options)=>{requests.push({url,...options});return fetcher(url,options);},
   require(name){if(name==='react')return{useState(initial){const i=cursor++;if(!(i in hooks))hooks[i]=initial;return[hooks[i],value=>{hooks[i]=value;}];}};if(name==='react/jsx-runtime')return{jsx,jsxs:jsx};if(name==='@/components/ui/Button')return{buttonClasses:()=>''};throw Error(name);}});
- const render=()=>{cursor=0;return module.exports.WaitlistForm();};
+ const render=()=>{cursor=0;return loaded.exports.WaitlistForm();};
  const submit=()=>render().props.onSubmit({preventDefault(){},currentTarget:{email:'owner@example.com',website:''}});
  return{render,submit,requests};
 }
