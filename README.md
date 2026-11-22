@@ -288,7 +288,7 @@ pnpm build
 
 ## Built for the hackathon
 
-Unfold was built for the [Cerebras × Kimi K3.1 Pro hackathon](https://luma.com/cerebras-kimi-hackathon), with the editing agent at the centre of the product. Event and submission details are kept in [`notes/HACKATHON.md`](notes/HACKATHON.md).
+Unfold was built for the [Cerebras × Kimi K3.1 Pro hackathon](https://luma.com/cerebras-kimi-hackathon), with the editing agent at the centre of the product.
 
 ## The creator
 
