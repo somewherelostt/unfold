@@ -8,7 +8,7 @@
       "root": "../..",
       "entrypoint": "infra/cloud/Dockerfile.media",
       "instances": {
-        "sin1": 0
+        "sin1": 1
       },
       "resources": {
         "requests": {
@@ -31,7 +31,7 @@
       "root": "../..",
       "entrypoint": "infra/cloud/Dockerfile.publishing",
       "instances": {
-        "sin1": 0
+        "sin1": 1
       },
       "resources": {
         "requests": {

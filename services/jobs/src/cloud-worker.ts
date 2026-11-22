@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -31,6 +31,8 @@ export class CloudJobWorker {
   private readonly options: WorkerOptions;
   private readonly active = new Map<string, { controller: AbortController; done: Promise<void> }>();
   private stopping = false;
+  private ticking: Promise<number> | null = null;
+  private stopped: Promise<void> | null = null;
   private seenAt = 0;
   get lastHeartbeatAt() { return this.seenAt; }
   constructor(store: PostgresJobStore, options: WorkerOptions) {
@@ -42,11 +44,18 @@ export class CloudJobWorker {
   }
   get activeCount() { return this.active.size; }
   /** One bounded scheduler pass, also useful in integration harnesses. Global limits live in PostgreSQL. */
-  async tick(): Promise<number> {
-    if (this.stopping) return 0;
+  tick(): Promise<number> {
+    if (this.stopping) return Promise.resolve(0);
+    if (this.ticking) return this.ticking;
+    const pending = this.schedule();
+    this.ticking = pending;
+    void pending.finally(() => { if (this.ticking === pending) this.ticking = null; }).catch(() => {});
+    return pending;
+  }
+  private async schedule(): Promise<number> {
     if (Date.now() - this.seenAt >= 10_000) { await this.store.workerSeen(this.id); this.seenAt = Date.now(); }
     let started = 0;
-    while (this.active.size < this.store.limits.maxRunning) {
+    while (!this.stopping && this.active.size < this.store.limits.maxRunning) {
       const kinds = Object.keys(this.options.handlers) as JobKind[];
       if (!kinds.length) break;
       const claim = await this.store.claim(this.id, kinds);
@@ -54,6 +63,9 @@ export class CloudJobWorker {
       const controller = new AbortController();
       const entry = { controller, done: Promise.resolve() };
       this.active.set(claim.id, entry);
+      // Shutdown may have arrived while PostgreSQL was granting this claim. Settle it
+      // through the normal fenced finish path without starting its handler.
+      if (this.stopping) controller.abort();
       entry.done = this.execute(claim, controller).catch((error) => this.options.onError?.(error)).finally(() => this.active.delete(claim.id));
       started++;
     }
@@ -113,13 +125,23 @@ export class CloudJobWorker {
     catch (error) { if (!isJobFault(error) || error.code !== "LEASE_LOST") throw error; }
   }
   async drain() { await Promise.all([...this.active.values()].map((entry) => entry.done)); }
-  async stop() {
+  stop(): Promise<void> {
+    if (this.stopped) return this.stopped;
     this.stopping = true;
     for (const entry of this.active.values()) entry.controller.abort();
-    await this.drain();
+    this.stopped = (async () => {
+      // An awaited claim can still add an execution after the first abort sweep.
+      try { await this.ticking; }
+      catch { /* The tick caller observes scheduler failures; shutdown must still drain. */ }
+      finally {
+        for (const entry of this.active.values()) entry.controller.abort();
+        await this.drain();
+      }
+    })();
+    return this.stopped;
   }
   async run(signal: AbortSignal) {
-    const stop = () => { void this.stop(); };
+    const stop = () => { void this.stop().catch((error) => this.options.onError?.(error)); };
     signal.addEventListener("abort", stop, { once: true });
     try {
       let lastRecovery = 0;
@@ -133,4 +155,26 @@ export class CloudJobWorker {
       }
     } finally { signal.removeEventListener("abort", stop); await this.stop(); }
   }
+}
+
+/** PostgreSQL tracks eligibility; only exact, non-symlinked attempt directories are removed. */
+export async function cleanCloudScratch(store: Pick<PostgresJobStore, "artifactRoot" | "retentionCandidates" | "forgetResource">) {
+  const root = await realpath(store.artifactRoot);
+  let removed = 0, skipped = 0;
+  for (const resource of await store.retentionCandidates()) {
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(resource.jobId) || !Number.isSafeInteger(resource.attempt) || resource.attempt < 1 || resource.relativePath !== path.join(resource.jobId, `attempt-${resource.attempt}`)) { skipped++; continue; }
+    const target = path.join(root, resource.relativePath);
+    try {
+      const parent = await lstat(path.dirname(target));
+      if (parent.isSymbolicLink() || await realpath(path.dirname(target)) !== path.join(root, resource.jobId)) { skipped++; continue; }
+      const item = await lstat(target);
+      if (item.isSymbolicLink()) { skipped++; continue; }
+      await rm(target, { recursive: true, force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") { skipped++; continue; }
+    }
+    await store.forgetResource(resource.jobId, resource.attempt);
+    removed++;
+  }
+  return { removed, skipped };
 }

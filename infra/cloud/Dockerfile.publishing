@@ -3,8 +3,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && npm install --global pnpm@12.14.0
 WORKDIR /app
 COPY . .
-RUN pnpm install --frozen-lockfile && chown -R node:node /app
+RUN pnpm install --frozen-lockfile \
+ && install -d -o node -g node -m 0700 /tmp/unfold-data /tmp/unfold-cloud-cache
 WORKDIR /app/apps/web
-ENV HOME=/home/node NODE_ENV=production UNFOLD_CLOUD_WORKER=1 UNFOLD_REPO_ROOT=/app UNFOLD_DATA_DIR=/tmp/unfold-data TSX_TSCONFIG_PATH=/app/apps/web/tsconfig.json
+ENV HOME=/home/node NODE_ENV=production UNFOLD_CLOUD_WORKER=1 UNFOLD_REPO_ROOT=/app UNFOLD_DATA_DIR=/tmp/unfold-data UNFOLD_CLOUD_CACHE_DIR=/tmp/unfold-cloud-cache TSX_TSCONFIG_PATH=/app/apps/web/tsconfig.json
 USER node
+RUN ffmpeg -version >/dev/null && ffprobe -version >/dev/null \
+ && node --import ../../packages/video/node_modules/tsx/dist/loader.mjs --test ../../infra/cloud/worker-packaging.test.mts
 CMD ["node","--import","../../packages/video/node_modules/tsx/dist/loader.mjs","../../services/publishing/scripts/cloud-worker.mts"]

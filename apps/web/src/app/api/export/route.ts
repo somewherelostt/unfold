@@ -9,7 +9,7 @@ import { StorageError } from "@/server/private-storage";
 import { apiError } from "@/server/api-errors";
 import { sse } from "@/server/sse";
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 let rendering = false;
 
 export async function POST(req: Request) {
