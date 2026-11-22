@@ -71,6 +71,17 @@ export type Aspect = z.infer<typeof Aspect>;
 export const CaptionPreset = z.enum(["bold-pop", "clean-pop", "meme", "story", "karaoke"]);
 export type CaptionPreset = z.infer<typeof CaptionPreset>;
 
+export const CaptionDesign = z.object({
+  typeface: z.enum(["sans", "serif", "condensed", "rounded"]).default("sans"),
+  fontScale: z.number().min(0.65).max(1.3).default(1),
+  weight: z.enum(["regular", "medium", "bold"]).default("medium"),
+  textColor: z.string().regex(/^#[0-9a-f]{6}$/i).default("#FFFFFF"),
+  highlightMode: z.enum(["none", "word", "background"]).default("word"),
+  animation: z.enum(["none", "fade", "rise", "pop"]).default("fade"),
+  outline: z.boolean().default(false),
+});
+export type CaptionDesign = z.infer<typeof CaptionDesign>;
+
 export const TransitionType = z.enum(["cut", "whip", "zoom-punch", "flash", "shake", "glitch", "slide"]);
 export type TransitionType = z.infer<typeof TransitionType>;
 
@@ -110,18 +121,19 @@ export const AgentPlan = z.object({
   captions: z.object({
     enabled: z.boolean().default(true),
     preset: CaptionPreset,
-    wordsPerChunk: z.number().int().min(1).max(5).default(2),
-    position: z.enum(["upper", "center", "lower"]).default("center"),
-    uppercase: z.boolean().default(true),
+    wordsPerChunk: z.number().int().min(1).max(5).default(4),
+    position: z.enum(["upper", "center", "lower"]).default("lower"),
+    uppercase: z.boolean().default(false),
     highlightColor: z.string().default("#FFE14D"),
     emphasisWords: z.array(z.string()).default([]),
+    design: CaptionDesign.optional(),
   }),
   music: z
     .object({
       trackId: z.string(),
-      volume: z.number().min(0).max(1).default(0.35),
+      volume: z.number().min(0).max(1).default(0.12),
       alignDropToSrc: z.number().nullable().default(null), // put the track's drop on this source moment
-      snapCutsToBeats: z.boolean().default(true),
+      snapCutsToBeats: z.boolean().default(false),
     })
     .nullable(),
   transitions: z.array(z.object({ afterSegment: z.number().int(), type: TransitionType })).default([]),
@@ -154,6 +166,7 @@ export const EditPlan = z.object({
     position: z.enum(["upper", "center", "lower"]),
     uppercase: z.boolean(),
     highlightColor: z.string(),
+    design: CaptionDesign.optional(),
     chunks: z.array(
       z.object({
         start: z.number(),

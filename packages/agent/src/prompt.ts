@@ -8,7 +8,7 @@ export const AGENT_PLAN_SHAPE = `{
   "aspect": "9:16"|"1:1"|"16:9",
   "hookText": string|null (max 6 words, on screen for the first 2s),
   "segments": [{"srcStart": number, "srcEnd": number, "speed": number 0.5-2}],
-  "captions": {"enabled": boolean, "preset": "bold-pop"|"clean-pop"|"meme"|"story"|"karaoke", "wordsPerChunk": 1-5, "position": "upper"|"center"|"lower", "uppercase": boolean, "highlightColor": "#RRGGBB", "emphasisWords": [string]},
+  "captions": {"enabled": boolean, "preset": "bold-pop"|"clean-pop"|"meme"|"story"|"karaoke", "wordsPerChunk": 1-5, "position": "upper"|"center"|"lower", "uppercase": boolean, "highlightColor": "#RRGGBB", "emphasisWords": [string], "design"?: {"typeface": "sans"|"serif"|"condensed"|"rounded", "fontScale": 0.65-1.3, "weight": "regular"|"medium"|"bold", "textColor": "#RRGGBB", "highlightMode": "none"|"word"|"background", "animation": "none"|"fade"|"rise"|"pop", "outline": boolean}},
   "music": {"trackId": string, "volume": 0-1, "alignDropToSrc": number|null, "snapCutsToBeats": boolean} | null,
   "transitions": [{"afterSegment": int, "type": "cut"|"whip"|"zoom-punch"|"flash"|"shake"|"glitch"|"slide"}],
   "zooms": [{"srcTime": number, "kind": "punch"|"slow-push", "scale": 1-1.8}],
@@ -47,7 +47,7 @@ export function describeLibrary(lib: Library): string {
 
 export function describeStyle(p: StyleProfile): string {
   return [
-    `COPY THIS STYLE (from the creator's inspiration video): ${p.summary}`,
+    `REFERENCE STYLE (adapt its techniques to this footage and brief): ${p.summary}`,
     `- pacing: ${r1(p.cutsPerMinute)} cuts/min, avg shot ${r1(p.avgShotSec)}s`,
     `- captions: ${p.captions.preset}, ${p.captions.wordsPerChunk} words/chunk, ${p.captions.position}, ${p.captions.uppercase ? "UPPERCASE" : "sentence case"}, highlight ${p.captions.highlightColor}`,
     `- transitions: ${p.transitions.join(", ")}; zoom intensity ${r1(p.zoomIntensity)}; SFX ${r1(p.sfxDensityPerMin)}/min`,
@@ -55,17 +55,29 @@ export function describeStyle(p: StyleProfile): string {
   ].join("\n");
 }
 
-/** Nine deliberately different directions for variants mode. */
+export const ADAPTIVE_DIRECTION = "Adaptive edit: infer whether this is a product demonstration, testimonial, explanation, personal story or action clip. Follow the creator's brief and available evidence. Preserve a clear setup, meaningful proof or action, and a satisfying outcome. Leave music, SFX, transitions, zooms and hook text out when they do not help.";
+
+const EDITORIAL_RULES = `Editorial priorities:
+- The creator's brief takes priority over optional variant suggestions. Adapt reference techniques to this footage; do not copy its claims, words or unrelated visuals.
+- Identify the story before decorating it. For product content, use a relevant problem, actual demonstration or proof, and an honest benefit; add a call to action only if requested or present in the footage. For organic content, preserve the creator's voice, setup, reaction and payoff. Never invent claims or outcomes.
+- Keep complete spoken thoughts and useful pauses. Default speech speed is 1. Do not force cuts onto every music beat or sacrifice a sentence for a beat.
+- Captions transcribe the supplied speech. Start with readable sentence-case phrases in a safe area; use bold animations and frequent word emphasis only when the brief or footage warrants them. Do not cover the subject or product.
+- Music is optional: return null when silence or original sound works better. If useful, start with a quiet instrumental bed under dialogue (about 0.08-0.16 volume), matched to the mood. Volume is a gain setting, not a loudness guarantee. Beat snapping is optional and defaults off.
+- Effects need a visible or audible reason. Prefer clean cuts; empty transitions, zooms, sfx and overlays arrays are valid. Never meet an effect quota. Keep sound effects sparse and below important speech. Do not add a hook title if the opening already communicates it.
+- Place every cue at an observed source moment that remains in the edit. Use only the supplied footage and library asset IDs. An inspiration video is not an available source asset. External B-roll is not supported by this plan shape; do not invent footage or asset IDs.
+- In rationale, explain the story choice and the restraint or emphasis that makes it fit this clip. Before replying, check continuity, unbroken speech, truthful captions, justified cues and whether an element should be removed.`;
+
+/** Alternatives explore storytelling choices without imposing an effect package. */
 export const VARIANT_DIRECTIONS = [
-  "Chaos cut: cold-open on the wildest moment, very fast cuts on every beat, meme captions, 3-4 meme SFX, flash and shake transitions, high-energy track.",
-  "Clean hook: strongest line first, clean-pop captions centered, whip transitions, one zoom punch per key line, trap or hype track at moderate volume.",
-  "Storytime: chronological, story captions lower third, sentence case, slow pushes, chill or emotional track, at most 1 SFX.",
-  "Gaming montage: bold-pop captions, zoom punches on action, glitch and whip transitions, phonk/hype track with the drop on the biggest moment.",
-  "15-second teaser: only the single best moment plus a hook, ends on a cliffhanger, fast cuts, karaoke captions.",
-  "Podcast clip: keep the best 2-3 sentences, karaoke captions, minimal transitions, subtle music, emphasis on the punchline.",
-  "Meme edit: exaggerated reactions, record scratch or fail SFX on the twist, speed ramp (speed 1.3-1.5) on the setup, meme captions.",
-  "Cinematic: slower pacing, slow-push zooms, epic or suspense track with the drop on the reveal, upper captions, few words per chunk.",
-  "Hype reel: every cut on a downbeat, maximum energy, bold-pop uppercase captions in flare orange #FF5A1F, 2 boom/impact SFX.",
+  ADAPTIVE_DIRECTION,
+  "Alternative opening: try another strong, truthful opening already present in the footage. Preserve the intended meaning and context; retain the requested style.",
+  "Tighter story: remove repetition while preserving the setup, proof and payoff. Use quieter styling when it improves clarity.",
+  "Proof first: where relevant, lead with an actual result or demonstration, then supply the necessary context. Do not invent evidence or a product claim.",
+  "More breathing room: preserve authentic reactions, useful pauses and natural sound. Keep only effects that help the story.",
+  "Dialogue led: prioritize a complete, memorable spoken idea and readable captions. Supporting audio and visuals remain optional.",
+  "Action led: when action is the subject, emphasize its strongest observed sequence. Use energetic timing only if it fits the brief and available footage.",
+  "Visual detail: use meaningful details already visible in the supplied footage. Preserve continuity and do not invent B-roll.",
+  "Alternative ending: try a different supported outcome, final reaction or requested call to action. Keep the edit's premise and style coherent.",
 ];
 
 export type ImagePart = { type: "image_url"; image_url: { url: string } };
@@ -79,7 +91,7 @@ export function basePrefix(analysis: MediaAnalysis, library: Library, frameDataU
     {
       role: "system",
       content:
-        "You are Unfold's editing agent. Reply with exactly one JSON object matching this shape, nothing else:\n" + AGENT_PLAN_SHAPE,
+        "You are Unfold's editing agent. Make a coherent edit that fits the content, not a fixed effects template.\n" + EDITORIAL_RULES + "\nReply with exactly one JSON object matching this shape, nothing else:\n" + AGENT_PLAN_SHAPE,
     },
     {
       role: "user",
@@ -101,7 +113,7 @@ export function planRequest(opts: {
   aspect?: string;
 }): ChatMessage[] {
   const parts = [
-    `CREATOR BRIEF: ${opts.brief || "Make it go viral."}`,
+    `CREATOR BRIEF: ${opts.brief || "Make a clear, engaging edit that feels natural for this footage."}`,
     opts.style ? describeStyle(opts.style) : "",
     opts.direction ? `THIS VARIANT: ${opts.direction}` : "",
     `ASPECT: ${opts.aspect ?? "9:16"}`,

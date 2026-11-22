@@ -44,28 +44,6 @@ export function mapSrcToOut(clips: Clip[], srcT: number): number | null {
   return null;
 }
 
-/** Nearest kept moment for a source time (so a cue on a cut moment lands on the closest kept frame). */
-function mapSrcToOutNearest(clips: Clip[], srcT: number): number {
-  const exact = mapSrcToOut(clips, srcT);
-  if (exact !== null) return exact;
-  let best = 0;
-  let bestDist = Infinity;
-  for (const c of clips) {
-    const candidates: [number, number][] = [
-      [c.srcStart, c.start],
-      [c.srcEnd, c.end],
-    ];
-    for (const [s, o] of candidates) {
-      const d = Math.abs(s - srcT);
-      if (d < bestDist) {
-        bestDist = d;
-        best = o;
-      }
-    }
-  }
-  return best;
-}
-
 export function compileEditPlan(
   plan: AgentPlan,
   analysis: MediaAnalysis,
@@ -106,10 +84,18 @@ export function compileEditPlan(
         if (Math.abs(delta) <= Math.min(0.5, clipLen * 0.35)) {
           const s = segments[i];
           const newEnd = Math.min(srcDur, s.srcEnd + delta * s.speed);
-          if (newEnd - s.srcStart >= MIN_CLIP_SEC) s.srcEnd = newEnd;
+          const lo = Math.min(s.srcEnd, newEnd);
+          const hi = Math.max(s.srcEnd, newEnd);
+          const changesSpeech = analysis.hasSpeech && analysis.words.some((word) => word.start < hi && word.end > lo);
+          if (!changesSpeech && newEnd - s.srcStart >= MIN_CLIP_SEC) s.srcEnd = newEnd;
         }
       }
       clips = layoutClips(segments);
+    }
+    // Preserve the chosen musical moment after the final clip layout changes.
+    if (plan.music.alignDropToSrc != null && track.dropAt != null) {
+      const finalDropOut = mapSrcToOut(clips, plan.music.alignDropToSrc);
+      if (finalDropOut !== null) trackStart = Math.max(0, track.dropAt - finalDropOut);
     }
   }
 
@@ -119,13 +105,14 @@ export function compileEditPlan(
   // 3. Captions: words that survive the cut, mapped to output time, grouped into chunks.
   const emphasis = new Set(plan.captions.emphasisWords.map(norm));
   const kept: { text: string; start: number; end: number; emphasis: boolean; clip: string }[] = [];
-  for (const w of analysis.words) {
-    const mid = (w.start + w.end) / 2;
-    const clip = clips.find((c) => mid >= c.srcStart && mid <= c.srcEnd);
-    if (!clip) continue;
-    const s = clip.start + (Math.max(w.start, clip.srcStart) - clip.srcStart) / clip.speed;
-    const e = clip.start + (Math.min(w.end, clip.srcEnd) - clip.srcStart) / clip.speed;
-    kept.push({ text: w.text.trim(), start: round(s), end: round(e), emphasis: emphasis.has(norm(w.text)), clip: clip.id });
+  for (const clip of clips) {
+    for (const w of analysis.words) {
+      const mid = (w.start + w.end) / 2;
+      if (mid < clip.srcStart || mid >= clip.srcEnd) continue;
+      const s = clip.start + (Math.max(w.start, clip.srcStart) - clip.srcStart) / clip.speed;
+      const e = clip.start + (Math.min(w.end, clip.srcEnd) - clip.srcStart) / clip.speed;
+      kept.push({ text: w.text.trim(), start: round(s), end: round(e), emphasis: emphasis.has(norm(w.text)), clip: clip.id });
+    }
   }
   // A cold open can put later source words first on the output timeline.
   kept.sort((a, b) => a.start - b.start || a.end - b.end);
@@ -154,21 +141,24 @@ export function compileEditPlan(
     .filter((t) => t.afterSegment >= 0 && t.afterSegment < clips.length - 1)
     .map((t) => ({ at: clips[t.afterSegment].end, type: t.type, durationSec: TRANSITION_SEC[t.type] }));
 
-  const zooms = plan.zooms.map((z) => {
-    const start = mapSrcToOutNearest(clips, z.srcTime);
+  const zooms = plan.zooms.flatMap((z) => {
+    const start = mapSrcToOut(clips, z.srcTime);
+    if (start === null || start >= durationSec) return [];
     const len = z.kind === "punch" ? 0.6 : 2.5;
-    return { start, end: clampOut(start + len), scale: z.scale, kind: z.kind };
+    return [{ start, end: clampOut(start + len), scale: z.scale, kind: z.kind }];
   });
 
   const sfx = plan.sfx.flatMap((s) => {
     const item = library.sfx.find((x) => x.id === s.sfxId);
-    if (!item) return [];
-    return [{ at: mapSrcToOutNearest(clips, s.srcTime), sfxId: item.id, url: item.url, name: item.name, volume: s.volume }];
+    const at = mapSrcToOut(clips, s.srcTime);
+    if (!item || at === null || at >= durationSec) return [];
+    return [{ at, sfxId: item.id, url: item.url, name: item.name, volume: s.volume }];
   });
 
-  const overlays = plan.overlays.map((o) => {
-    const start = mapSrcToOutNearest(clips, o.srcTime);
-    return { start, end: clampOut(start + o.durationSec), text: o.text };
+  const overlays = plan.overlays.flatMap((o) => {
+    const start = mapSrcToOut(clips, o.srcTime);
+    if (start === null || start >= durationSec) return [];
+    return [{ start, end: clampOut(start + o.durationSec), text: o.text }];
   });
 
   const { width, height } = ASPECT_SIZE[plan.aspect];
@@ -193,6 +183,7 @@ export function compileEditPlan(
       position: plan.captions.position,
       uppercase: plan.captions.uppercase,
       highlightColor: plan.captions.highlightColor,
+      ...(plan.captions.design ? { design: plan.captions.design } : {}),
       chunks,
     },
     music:

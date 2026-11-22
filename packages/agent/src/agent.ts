@@ -1,5 +1,6 @@
 import {
   AgentPlan,
+  CaptionDesign,
   StyleProfile,
   compileEditPlan,
   type EditPlan,
@@ -7,7 +8,7 @@ import {
   type MediaAnalysis,
 } from "@unfold/core";
 import { agentConfigFromEnv, extractJson, streamChat, type AgentConfig, type StreamStats } from "./client";
-import { VARIANT_DIRECTIONS, planRequest, remixRequest, styleRequest } from "./prompt";
+import { ADAPTIVE_DIRECTION, VARIANT_DIRECTIONS, planRequest, remixRequest, styleRequest } from "./prompt";
 
 export type FrameLoader = (url: string) => Promise<string>; // web path → data URL (base64 jpeg)
 
@@ -21,13 +22,14 @@ export type AgentContext = {
   maxFrames?: number;
 };
 
-async function frameUrls(ctx: AgentContext): Promise<string[]> {
+async function frameInputs(ctx: AgentContext): Promise<{ analysis: MediaAnalysis; urls: string[] }> {
   const max = ctx.maxFrames ?? 8;
   const frames = ctx.analysis.frames;
   const step = Math.max(1, Math.ceil(frames.length / max));
   const picked = frames.filter((_, i) => i % step === 0).slice(0, max);
-  const out = await Promise.all(picked.map((f) => ctx.loadFrame(f.url).catch(() => null)));
-  return out.filter((x): x is string => !!x);
+  const out = await Promise.all(picked.map(async (frame) => ({ frame, url: await ctx.loadFrame(frame.url).catch(() => null) })));
+  const loaded = out.filter((item): item is { frame: MediaAnalysis["frames"][number]; url: string } => !!item.url);
+  return { analysis: { ...ctx.analysis, frames: loaded.map((item) => item.frame) }, urls: loaded.map((item) => item.url) };
 }
 
 /** Make a model reply valid: fill defaults, clamp ranges, drop unknown asset ids. */
@@ -38,6 +40,8 @@ export function normalizePlan(raw: unknown, ctx: { analysis: MediaAnalysis; libr
   const musicIds = new Set(ctx.library.music.map((m) => m.id));
   const sfxIds = new Set(ctx.library.sfx.map((s) => s.id));
   const segs = Array.isArray(r.segments) ? r.segments : [];
+  const design = CaptionDesign.safeParse(r.captions?.design);
+  const validSourceTime = (time: unknown): time is number => typeof time === "number" && Number.isFinite(time) && time >= 0 && time < dur;
   const candidate = {
     ...r,
     style: ["gaming-montage", "podcast-clip", "storytime", "chaos", "custom"].includes(r.style) ? r.style : "custom",
@@ -53,33 +57,32 @@ export function normalizePlan(raw: unknown, ctx: { analysis: MediaAnalysis; libr
       }))
       .filter((s: any) => s.srcEnd - s.srcStart > 0.2),
     captions: {
-      enabled: r.captions?.enabled !== false,
-      preset: ["bold-pop", "clean-pop", "meme", "story", "karaoke"].includes(r.captions?.preset) ? r.captions.preset : "bold-pop",
-      wordsPerChunk: Math.round(clamp(r.captions?.wordsPerChunk, 1, 5, 2)),
-      position: ["upper", "center", "lower"].includes(r.captions?.position) ? r.captions.position : "center",
-      uppercase: r.captions?.uppercase !== false,
+      enabled: ctx.analysis.hasSpeech && r.captions?.enabled !== false,
+      preset: ["bold-pop", "clean-pop", "meme", "story", "karaoke"].includes(r.captions?.preset) ? r.captions.preset : "clean-pop",
+      wordsPerChunk: Math.round(clamp(r.captions?.wordsPerChunk, 1, 5, 4)),
+      position: ["upper", "center", "lower"].includes(r.captions?.position) ? r.captions.position : "lower",
+      uppercase: r.captions?.uppercase === true,
       highlightColor: /^#[0-9a-f]{6}$/i.test(r.captions?.highlightColor ?? "") ? r.captions.highlightColor : "#FFE14D",
       emphasisWords: Array.isArray(r.captions?.emphasisWords) ? r.captions.emphasisWords.filter((w: unknown) => typeof w === "string").slice(0, 12) : [],
+      ...(design.success ? { design: design.data } : {}),
     },
     music:
       r.music && musicIds.has(r.music.trackId)
         ? {
             trackId: r.music.trackId,
-            volume: clamp(r.music.volume, 0, 1, 0.35),
-            alignDropToSrc: typeof r.music.alignDropToSrc === "number" ? clamp(r.music.alignDropToSrc, 0, dur, 0) : null,
-            snapCutsToBeats: r.music.snapCutsToBeats !== false,
+            volume: clamp(r.music.volume, 0, 1, ctx.analysis.hasSpeech ? 0.12 : 0.22),
+            alignDropToSrc: validSourceTime(r.music.alignDropToSrc) ? r.music.alignDropToSrc : null,
+            snapCutsToBeats: r.music.snapCutsToBeats === true,
           }
-        : ctx.library.music[0]
-          ? { trackId: ctx.library.music[0].id, volume: 0.3, alignDropToSrc: null, snapCutsToBeats: true }
-          : null,
+        : null,
     transitions: (Array.isArray(r.transitions) ? r.transitions : []).filter((t: any) => Number.isInteger(t?.afterSegment)),
     zooms: (Array.isArray(r.zooms) ? r.zooms : [])
-      .filter((z: any) => typeof z?.srcTime === "number")
-      .map((z: any) => ({ srcTime: clamp(z.srcTime, 0, dur, 0), kind: z.kind === "slow-push" ? "slow-push" : "punch", scale: clamp(z.scale, 1, 1.8, 1.25) })),
+      .filter((z: any) => validSourceTime(z?.srcTime))
+      .map((z: any) => ({ srcTime: z.srcTime, kind: z.kind === "punch" ? "punch" : "slow-push", scale: clamp(z.scale, 1, 1.8, 1.08) })),
     sfx: (Array.isArray(r.sfx) ? r.sfx : [])
-      .filter((s: any) => sfxIds.has(s?.sfxId) && typeof s?.srcTime === "number")
-      .map((s: any) => ({ srcTime: clamp(s.srcTime, 0, dur, 0), sfxId: s.sfxId, volume: clamp(s.volume, 0, 1, 0.8) })),
-    overlays: (Array.isArray(r.overlays) ? r.overlays : []).filter((o: any) => typeof o?.text === "string" && typeof o?.srcTime === "number"),
+      .filter((s: any) => sfxIds.has(s?.sfxId) && validSourceTime(s?.srcTime))
+      .map((s: any) => ({ srcTime: s.srcTime, sfxId: s.sfxId, volume: clamp(s.volume, 0, 1, 0.35) })),
+    overlays: (Array.isArray(r.overlays) ? r.overlays : []).filter((o: any) => typeof o?.text === "string" && validSourceTime(o?.srcTime)),
   };
   if (candidate.segments.length === 0) candidate.segments = [{ srcStart: 0, srcEnd: dur, speed: 1 }];
   const parsed = AgentPlan.safeParse(candidate);
@@ -107,8 +110,8 @@ export async function generatePlan(
   opts: { direction?: string; style?: StyleProfile | null; aspect?: string; onDelta?: (t: string) => void; signal?: AbortSignal } = {},
 ): Promise<PlanResult> {
   const cfg = ctx.config ?? agentConfigFromEnv();
-  const frames = await frameUrls(ctx);
-  const messages = planRequest({ analysis: ctx.analysis, library: ctx.library, frameDataUrls: frames, brief, ...opts });
+  const frames = await frameInputs(ctx);
+  const messages = planRequest({ analysis: frames.analysis, library: ctx.library, frameDataUrls: frames.urls, brief, ...opts });
   const { text, stats } = await streamChat(messages, cfg, { onDelta: opts.onDelta }, { signal: opts.signal });
   return toResult(text, stats, ctx);
 }
@@ -123,12 +126,12 @@ export async function* generateVariants(
   opts: { count?: number; style?: StyleProfile | null; aspect?: string; signal?: AbortSignal } = {},
 ): AsyncGenerator<{ index: number; direction: string; result?: PlanResult; error?: string }> {
   const cfg = ctx.config ?? agentConfigFromEnv();
-  const frames = await frameUrls(ctx);
+  const frames = await frameInputs(ctx);
   const count = Math.min(opts.count ?? 9, VARIANT_DIRECTIONS.length);
   const pending = new Map<number, Promise<{ index: number; direction: string; result?: PlanResult; error?: string }>>();
   for (let i = 0; i < count; i++) {
-    const direction = VARIANT_DIRECTIONS[i];
-    const messages = planRequest({ analysis: ctx.analysis, library: ctx.library, frameDataUrls: frames, brief, direction, style: opts.style, aspect: opts.aspect });
+    const direction = count === 1 ? ADAPTIVE_DIRECTION : VARIANT_DIRECTIONS[i];
+    const messages = planRequest({ analysis: frames.analysis, library: ctx.library, frameDataUrls: frames.urls, brief, direction, style: opts.style, aspect: opts.aspect });
     pending.set(
       i,
       streamChat(messages, cfg, {}, { signal: opts.signal })
@@ -151,8 +154,8 @@ export async function remixPlan(
   opts: { onDelta?: (t: string) => void; signal?: AbortSignal } = {},
 ): Promise<PlanResult> {
   const cfg = ctx.config ?? agentConfigFromEnv();
-  const frames = await frameUrls(ctx);
-  const messages = remixRequest({ analysis: ctx.analysis, library: ctx.library, frameDataUrls: frames, current, message });
+  const frames = await frameInputs(ctx);
+  const messages = remixRequest({ analysis: frames.analysis, library: ctx.library, frameDataUrls: frames.urls, current, message });
   const { text, stats } = await streamChat(messages, cfg, { onDelta: opts.onDelta }, { signal: opts.signal });
   return toResult(text, stats, ctx);
 }
@@ -165,8 +168,8 @@ export async function analyzeStyle(
   config?: AgentConfig,
 ): Promise<{ profile: StyleProfile; stats: StreamStats }> {
   const cfg = config ?? agentConfigFromEnv();
-  const frames = await frameUrls({ analysis: reference, library: { music: [], sfx: [] }, loadFrame, maxFrames: 8 });
-  const { text, stats: s } = await streamChat(styleRequest(reference, frames, stats), cfg);
+  const frames = await frameInputs({ analysis: reference, library: { music: [], sfx: [] }, loadFrame, maxFrames: 8 });
+  const { text, stats: s } = await streamChat(styleRequest(frames.analysis, frames.urls, stats), cfg);
   const raw = extractJson(text) as any;
   const profile = StyleProfile.parse({
     summary: String(raw.summary ?? "Fast-paced short-form edit"),
