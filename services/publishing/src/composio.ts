@@ -5,6 +5,9 @@ import { TOOLKIT_VERSIONS, type PublishingConfig } from "./config.ts";
 import { PublishingError, type Account, type Owner, type Platform } from "./types.ts";
 export type JsonObject = Record<string, unknown>;
 const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
+/** Live v3.1 uses JSON Schema; the reference also documents flat parameter maps. */
+const schemaFields = (value: unknown): JsonObject => { const schema = object(value); return schema.type === "object" ? object(schema.properties) : schema; };
+const hasFields = (value: unknown, names: readonly string[]) => names.every((name) => Object.hasOwn(schemaFields(value), name));
 const numericId = (v: unknown): string | null => typeof v === "string" && /^\d{1,40}$/.test(v) ? v : null;
 export { object, numericId };
 export class ProviderFault extends Error {
@@ -54,8 +57,14 @@ export class ComposioClient {
     const work = (async (): Promise<Capability> => { try {
       await Promise.all(Object.entries(TOOL_SPECS[platform]).map(async ([slug, keys]) => {
         const tool = await this.request(`/tools/${slug}?version=${TOOLKIT_VERSIONS[platform]}`, "GET");
-        const parameters = object(tool.input_parameters);
-        if (tool.slug !== slug || tool.version !== TOOLKIT_VERSIONS[platform] || tool.is_deprecated === true || object(tool.toolkit).slug !== platform || (keys as readonly string[]).some((key) => !(key in parameters))) throw new PublishingError("CAPABILITY_CHANGED", "This platform’s video connection needs an update.", 503);
+        const parameters = schemaFields(tool.input_parameters);
+        if (tool.slug !== slug || tool.version !== TOOLKIT_VERSIONS[platform] || tool.is_deprecated === true || object(tool.toolkit).slug !== platform || !hasFields(tool.input_parameters, keys)) throw new PublishingError("CAPABILITY_CHANGED", "This platform’s video connection needs an update.", 503);
+        if (slug === "INSTAGRAM_POST_IG_USER_MEDIA" && this.config.instagramDelivery === "staged_file" && !hasFields(parameters.video_file, ["name", "mimetype", "s3key"])) throw new PublishingError("CAPABILITY_CHANGED", "This platform’s video upload connection needs an update.", 503);
+        if (slug === "PINTEREST_CREATE_PIN") {
+          const source = object(parameters.media_source), variants = Array.isArray(source.oneOf) ? source.oneOf : [source];
+          const cover = this.config.pinterestCover === "key_frame" ? "cover_image_key_frame_time" : "cover_image_url";
+          if (!variants.some((variant) => object(schemaFields(variant).source_type).const === "video_id" && hasFields(variant, ["media_id", cover]))) throw new PublishingError("CAPABILITY_CHANGED", "This platform’s video upload connection needs an update.", 503);
+        }
       }));
       const result = { platform, videoSupported: true, available: true, reason: "Video publishing available. Account eligibility and media checks still apply.", checkedAt: Date.now() }; this.verified.set(platform, { until: Date.now() + 300_000, result }); return result;
     } catch { const result = { platform, videoSupported: true, available: false, reason: "This platform’s video connection could not be verified. Try again shortly.", checkedAt: Date.now() }; this.verified.set(platform, { until: Date.now() + 30_000, result }); return result; } })();
@@ -71,7 +80,10 @@ export class ComposioClient {
       if (toolkit.slug !== platform || !managed) throw new PublishingError("MANAGED_CONNECTION_UNAVAILABLE", "This platform’s video connection requires additional setup by the app administrator.", 503);
       const required = platform === "instagram" ? ["instagram_business_basic", "instagram_business_content_publish"] : ["boards:read", "pins:read", "pins:write", "user_accounts:read"];
       const available = object(managed.scopes).available;
-      if (Array.isArray(available) && required.some((scope) => !available.includes(scope))) throw new PublishingError("PUBLISH_ACCESS_UNAVAILABLE", "This connection does not offer the access required to publish video. Contact the app administrator.", 503);
+      const defaults = (Array.isArray(toolkit.auth_config_details) ? toolkit.auth_config_details : []).map(object).filter((a) => a.mode === "OAUTH2").flatMap((a) => { const fields = object(object(a.fields).auth_config_creation); return [...(Array.isArray(fields.required) ? fields.required : []), ...(Array.isArray(fields.optional) ? fields.optional : [])].map(object).filter((f) => f.name === "scopes" && typeof f.default === "string").flatMap((f) => String(f.default).split(",").map((s) => s.trim()).filter(Boolean)); });
+      // An empty available list is unspecified for some live toolkits. Require explicit default-scope evidence instead.
+      const supported = Array.isArray(available) && available.length ? available : defaults;
+      if (required.some((scope) => !supported.includes(scope))) throw new PublishingError("PUBLISH_ACCESS_UNAVAILABLE", "This connection does not offer the access required to publish video. Contact the app administrator.", 503);
       const name = `Unfold publishing ${platform} ${createHash("sha256").update(this.config.instanceId).digest("hex").slice(0, 12)}`;
       const allowedTools = Object.keys(TOOL_SPECS[platform]);
       const existing = await this.request(`/auth_configs?toolkit_slug=${platform}&is_composio_managed=true&search=${encodeURIComponent(name)}&limit=200`, "GET");
@@ -91,7 +103,7 @@ export class ComposioClient {
     try { await this.request("/toolkits/bluesky", "GET"); }
     catch (error) { if (error instanceof ProviderFault && error.httpStatus === 404) return { toolkitExists: false, tools: [] }; throw error; }
     const result = await this.request("/tools?toolkit_slug=bluesky&query=video&limit=100", "GET");
-    return { toolkitExists: true, tools: (Array.isArray(result.items) ? result.items : []).map(object).map((t) => ({ slug: String(t.slug), version: String(t.version), inputKeys: Object.keys(object(t.input_parameters)) })) };
+    return { toolkitExists: true, tools: (Array.isArray(result.items) ? result.items : []).map(object).map((t) => ({ slug: String(t.slug), version: String(t.version), inputKeys: Object.keys(schemaFields(t.input_parameters)) })) };
   }
   /** Explicit staging of an already owner-verified export. No arbitrary paths are accepted by the HTTP API. */
   async stageInstagramVideo(absolutePath: string, filename: string, onPrepared: (id: string) => void) {

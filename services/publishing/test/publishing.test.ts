@@ -104,11 +104,23 @@ test("REST adapter pins verified tool schemas and never leaks raw provider error
     sent = init; const slug = new URL(String(url)).pathname.split("/").pop()!;
     if (String(url).includes("/tools/execute/")) return Response.json({ successful: false, error: "secret-token" });
     assert.equal(new URL(String(url)).searchParams.get("version"), TOOLKIT_VERSIONS.instagram);
-    return Response.json({ slug, toolkit: { slug: "instagram" }, version: TOOLKIT_VERSIONS.instagram, input_parameters: Object.fromEntries((TOOL_SPECS.instagram[slug as keyof typeof TOOL_SPECS.instagram] as readonly string[]).map((key) => [key, {}])) });
+    return Response.json({ slug, toolkit: { slug: "instagram" }, version: TOOLKIT_VERSIONS.instagram, input_parameters: Object.fromEntries((TOOL_SPECS.instagram[slug as keyof typeof TOOL_SPECS.instagram] as readonly string[]).map((key) => [key, key === "video_file" ? { name: {}, mimetype: {}, s3key: {} } : {}])) });
   });
   assert.equal((await client.capability("instagram")).available, true); assert.equal((await client.capability("bluesky")).available, false);
   await assert.rejects(client.execute(account(), "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH", { creation_id: "456", ig_user_id: "123" }, true), (error: unknown) => error instanceof ProviderFault && error.outcome === "ambiguous" && !error.message.includes("secret-token"));
   const body = JSON.parse(String(sent!.body)); assert.equal(body.connected_account_id, account().providerAccountId); assert.equal(body.version, TOOLKIT_VERSIONS.instagram);
+});
+test("live JSON Schema catalog requires the selected native video source and cover fields", async () => {
+  for (const platform of ["instagram", "pinterest"] as const) for (const valid of [true, false]) {
+    const client = new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async (url) => {
+      const slug = new URL(String(url)).pathname.split("/").pop()!;
+      const properties = Object.fromEntries((TOOL_SPECS[platform][slug as keyof typeof TOOL_SPECS[typeof platform]] as readonly string[]).map((key) => [key, {}]));
+      if (slug === "INSTAGRAM_POST_IG_USER_MEDIA") properties.video_file = { type: "object", properties: { name: {}, mimetype: {}, ...(valid ? { s3key: {} } : {}) } };
+      if (slug === "PINTEREST_CREATE_PIN") properties.media_source = { oneOf: [{ type: "object", properties: { source_type: { const: "video_id" }, media_id: {}, ...(valid ? { cover_image_key_frame_time: { type: "integer" } } : {}) } }] };
+      return Response.json({ slug, toolkit: { slug: platform }, version: TOOLKIT_VERSIONS[platform], input_parameters: { type: "object", properties } });
+    });
+    assert.equal((await client.capability(platform)).available, valid, `${platform} native schema validation`);
+  }
 });
 test("a timed-out Instagram publish is verified and never sent a second time", () => fixture(async (s, advance) => {
   s.create(owner, media, [destination()], resolveSchedule({ mode: "now" }, 1_800_000_000_000), "submission-eight");
@@ -170,6 +182,18 @@ test("missing managed publishing scopes stay unavailable; Bluesky catalog probes
     return Response.json({ slug: "instagram", composio_managed_auth: [{ mode: "OAUTH2", is_default: true, scopes: { available: ["instagram_business_basic"] } }] });
   });
   await assert.rejects(client.prepareAuthConfig("instagram"), /access required/); assert.equal(mutations, 0); assert.equal((await client.inspectBlueskyCatalog()).toolkitExists, false);
+});
+test("empty managed scope metadata requires declared OAuth defaults before requesting only minimal scopes", async () => {
+  for (const declared of [true, false]) {
+    let creates = 0;
+    const client = new ComposioClient(loadPublishingConfig("/tmp", { COMPOSIO_API_KEY: "fixture" }), async (url, init) => {
+      if (String(url).includes("/toolkits/")) return Response.json({ slug: "pinterest", composio_managed_auth: [{ mode: "OAUTH2", is_default: true, scopes: { available: [] } }], auth_config_details: [{ mode: "OAUTH2", fields: { auth_config_creation: { optional: [{ name: "scopes", default: declared ? "boards:read,boards:write,pins:read,pins:write,user_accounts:read" : "boards:read" }] } } }] });
+      if (init?.method === "GET") return Response.json({ items: [] });
+      creates++; const body = JSON.parse(String(init?.body)); assert.equal(body.auth_config.credentials.scopes, "boards:read,pins:read,pins:write,user_accounts:read"); return Response.json({ auth_config: { id: "ac_fixture" } });
+    });
+    if (declared) assert.equal(await client.prepareAuthConfig("pinterest"), "ac_fixture"); else await assert.rejects(client.prepareAuthConfig("pinterest"), /access required/);
+    assert.equal(creates, declared ? 1 : 0);
+  }
 });
 test("polling or preview verification cannot activate an OAuth mapping before the owner-bound state callback", () => fixture((s) => {
   const pending = { ...account("new-connection"), identity: null, verifiedAt: null, status: "connecting" as const }; s.putAccount(pending);
