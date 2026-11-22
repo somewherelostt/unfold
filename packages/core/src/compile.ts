@@ -127,6 +127,8 @@ export function compileEditPlan(
     const e = clip.start + (Math.min(w.end, clip.srcEnd) - clip.srcStart) / clip.speed;
     kept.push({ text: w.text.trim(), start: round(s), end: round(e), emphasis: emphasis.has(norm(w.text)), clip: clip.id });
   }
+  // A cold open can put later source words first on the output timeline.
+  kept.sort((a, b) => a.start - b.start || a.end - b.end);
   const chunks: EditPlan["captions"]["chunks"] = [];
   let cur: typeof kept = [];
   const flush = () => {

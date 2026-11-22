@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { AbsoluteFill, random, spring, useCurrentFrame } from "remotion";
 import type { CaptionPreset, EditPlan } from "@unfold/core";
+import { captionChunkIndexAt, orderCaptionChunks } from "../captionTiming";
 import { captionFont } from "../fonts";
 import { clamp, easeOutCubic, safeArea, unit } from "../util";
 
@@ -169,7 +170,14 @@ function Word({
       const padX = 0.2 * P.size * u;
       return (
         <>
-          <span style={{ position: "relative", display: "inline-block", padding: `0 ${padX}px` }}>
+          <span
+            style={{
+              position: "relative",
+              display: "inline-block",
+              padding: `0 ${padX}px`,
+              transform: active ? `scale(${0.7 + 0.3 * pop}) rotate(-2deg)` : undefined,
+            }}
+          >
             {active ? (
               <span
                 style={{
@@ -180,7 +188,6 @@ function Word({
                   bottom: "4%",
                   background: hl,
                   borderRadius: 18 * u,
-                  transform: `scale(${0.7 + 0.3 * pop}) rotate(-2deg)`,
                   boxShadow: `0 ${8 * u}px 0 rgba(0,0,0,.35)`,
                 }}
               />
@@ -189,7 +196,7 @@ function Word({
               color={active ? "#0B0B0C" : emph ? hl : "#FFFFFF"}
               stroke={active ? 0 : P.stroke * u}
               shadow={active ? undefined : P.shadow}
-              style={{ fontSize: size, opacity: spoken || active ? 1 : 0.85, transform: `scale(${active ? 1 + 0.06 * pop : 1})` }}
+              style={{ fontSize: size, opacity: spoken || active ? 1 : 0.85 }}
             >
               {text}
             </StrokedText>
@@ -205,14 +212,10 @@ export const Captions: React.FC<{ plan: EditPlan; avoidTop?: boolean }> = ({ pla
   const fps = plan.fps;
   const t = frame / fps;
   const { captions } = plan;
-  if (!captions.enabled || captions.chunks.length === 0) return null;
+  const chunks = useMemo(() => orderCaptionChunks(captions.chunks), [captions.chunks]);
+  if (!captions.enabled || chunks.length === 0) return null;
 
-  const chunks = captions.chunks;
-  const ci = chunks.findIndex((c, i) => {
-    const next = chunks[i + 1];
-    const until = Math.min(next ? next.start : Infinity, c.end + (next ? 0.6 : 0.9));
-    return t >= c.start - 0.03 && t < until;
-  });
+  const ci = captionChunkIndexAt(chunks, t);
   if (ci < 0) return null;
   const chunk = chunks[ci];
   const preset = captions.preset;

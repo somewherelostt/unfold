@@ -1,192 +1,235 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useRef, useState, type DragEvent } from "react";
-import { actions, useStore } from "@/lib/client/store";
-import type { StyleChoice } from "@/lib/client/types";
-import { AppHeader, HeaderLink } from "../AppHeader";
-import { Button, Chip, Icon, STYLE_META, cx } from "../ui";
-import { StyleModal } from "./StyleModal";
+/** /app: centred prompt shell + chips, clip status, recent edits. */
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { sampleAnalysis } from "@unfold/core";
+import { actions, isActive, useStore, type PlanEntry } from "@/lib/client/store";
+import { PromptShell, type PromptSubmit } from "@/components/ui/PromptShell";
+import { abandonPromptDraft, recoverPromptDraft } from "@/lib/client/draft";
+import { Button } from "@/components/ui/Button";
+import { SectionLabel } from "@/components/ui/Panel";
+import { Shimmer } from "@/components/ui/Shimmer";
+import { VideoCard } from "@/components/ui/VideoCard";
+import { IconArrowRight, IconUpload, IconX } from "@/components/ui/icons";
+import { AppHeader } from "../AppHeader";
 
-const PRESETS = ["gaming-montage", "podcast-clip", "storytime", "chaos"] as const;
-const IDEAS = ["Make it a 15s vertical cut with a cold open", "Meme sounds on every fail", "Clean captions for a podcast clip"];
+const BRIEFS = ["Make my gameplay go viral", "Add captions that pop, word by word", "Cut this into a 15s hook-first clip", "Hype reel with whip pans and a big drop"];
 
 export function HomeScreen() {
   const router = useRouter();
+  const params = useSearchParams();
   const project = useStore((s) => s.project);
-  const runStatus = useStore((s) => s.run.status);
-  const hasVariants = useStore((s) => s.run.slots.some(Boolean));
-  const [modal, setModal] = useState(false);
-  const [drag, setDrag] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const refInput = useRef<HTMLInputElement>(null);
+  const running = useStore((s) => isActive(s.run));
+  const plans = useStore((s) => s.plans);
+  const altRoot = useStore((s) => s.altRoot);
+  const draftId = params.get("draft");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [settledDraft, setSettledDraft] = useState<string | null>(null);
+  const recovering = !!draftId && settledDraft !== draftId;
+  const [recoveryAttempt, retryRecovery] = useState(0);
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    void recoverPromptDraft(draftId).then(() => {
+      if (active) { setSettledDraft(draftId); router.replace("/app", { scroll: false }); }
+    }, (e: unknown) => {
+      if (active) { setSettledDraft(draftId); setDraftError(e instanceof Error ? e.message : "Couldn't recover your clip. Attach it again."); }
+    });
+    return () => { active = false; };
+  }, [draftId, recoveryAttempt, router]);
 
-  async function onFile(file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("video/")) return;
-    await actions.upload(file); // analysis keeps running; Generate waits for it
-  }
-  function onDrop(e: DragEvent) {
-    e.preventDefault();
-    setDrag(false);
-    void onFile(e.dataTransfer.files[0]);
-  }
-  function start(style: StyleChoice) {
-    actions.setStyle(style);
-    setModal(false);
-    void actions.generate(9);
-    router.push("/app/variants");
+  function start(v: PromptSubmit) {
+    if (running) return router.push("/app/new");
+    if (recovering) throw new Error("Your attached clip is still being recovered. Try again when it is ready.");
+    if (draftError && !project.videoId) throw new Error("Attach your clip again or retry recovery before starting.");
+    const url = v.prompt.match(/https?:\/\/\S+/)?.[0] ?? "";
+    const text = v.prompt.replace(url, "").replace(/copy the style of this video:?\s*$/i, "").trim();
+    if (url) actions.setReferenceUrl(url);
+    actions.setPrompt(text);
+    actions.setPromptStyle(v.style);
+    actions.setStyle(null);
+    actions.setAspect(v.aspect as "9:16" | "1:1" | "16:9");
+    void actions.generate();
+    router.push("/app/new");
   }
 
-  const ready = !project.analyzeError;
-  const presetSel = project.style?.kind === "preset" ? project.style.preset : null;
+  function attach(file: File | null) {
+    setDraftError(null);
+    if (draftId) { abandonPromptDraft(draftId); setSettledDraft(draftId); router.replace("/app", { scroll: false }); }
+    if (file) void actions.upload(file);
+    else actions.clearUpload();
+  }
+
+  // Recent edits: one card per edit (alternate takes stay inside their edit).
+  const recent = Object.entries(plans)
+    .filter(([id]) => !altRoot[id] || altRoot[id] === id)
+    .reverse()
+    .slice(0, 8);
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <AppHeader>
-        {hasVariants && runStatus !== "generating" && (
-          <HeaderLink onClick={() => router.push("/app/variants")} icon="grid">
-            Last edits
-          </HeaderLink>
-        )}
-      </AppHeader>
+      <AppHeader />
+      <main className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col px-4 pb-24 pt-14 sm:px-8 sm:pt-24">
+        <div className="mx-auto w-full max-w-[640px] text-center">
+          <h1 className="uf-rise font-display text-[38px] leading-[42px] tracking-[-0.02em] text-text-1 sm:text-[52px] sm:leading-[56px]">
+            What should this clip <em className="italic">become</em>?
+          </h1>
+          <p className="uf-rise mx-auto mt-3 max-w-[480px] text-[15px] leading-6 text-text-2 [--i:1]">
+            Drop in raw footage. Unfold edits it with captions, beat-synced music, transitions and sound effects.
+          </p>
+        </div>
 
-      <main className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 pb-20 pt-12 sm:px-6 sm:pt-24">
-        <h1 className="t-display blur-in text-balance text-center">What should this clip become?</h1>
-        <p className="t-h3 fg-2 blur-in mx-auto mt-3 max-w-md text-balance text-center font-normal [animation-delay:150ms]">
-          Drop in raw footage. Unfold writes nine edits with captions, beat-synced music and meme sounds, in seconds.
-        </p>
-
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDrag(true);
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={onDrop}
-          className={cx(
-            "layer-1 float mt-10 overflow-hidden rounded-[16px]",
-            drag && "shadow-[inset_0_0_0_1px_var(--flare),0_0_0_4px_var(--flare-10)]",
-          )}
-        >
-          {/* Clip */}
-          <div className="p-2">
-            {project.fileName ? (
-              <div className="layer-2 flex items-center gap-3 rounded-[10px] p-2">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-[8px] bg-track-video text-white">
-                  <Icon name="film" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="t-body truncate font-medium">{project.fileName}</div>
-                  <div className="t-meta">
-                    {project.analyzeError ? (
-                      <span className="text-danger">{project.analyzeError}</span>
-                    ) : project.analyzing || !project.analysis ? (
-                      <span className="shimmer">Transcribing, finding scenes and beats…</span>
-                    ) : (
-                      <span className="t-mono fg-3 font-normal">
-                        {project.analysis.durationSec.toFixed(1)}s · {project.analysis.words.length} words · {project.analysis.scenes.length} scenes
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => actions.clearUpload()} aria-label="Remove clip">
-                  <Icon name="close" />
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                className="tint layer-2 flex w-full items-center gap-3 rounded-[10px] p-2 text-left"
-              >
-                <span className="layer-1 hair flex size-10 shrink-0 items-center justify-center rounded-[8px] text-flare">
-                  <Icon name="upload" />
-                </span>
-                <span className="min-w-0">
-                  <span className="t-body block font-medium">Drop a raw clip, or browse</span>
-                  <span className="t-meta fg-3 block">MP4 or MOV, up to 3 min. No clip? We&apos;ll use the sample gameplay clip.</span>
-                </span>
-              </button>
-            )}
-            <input ref={fileInput} type="file" accept="video/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
-          </div>
-
-          {/* Prompt */}
-          <textarea
-            value={project.prompt}
-            onChange={(e) => actions.setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && ready) setModal(true);
-            }}
-            rows={3}
-            placeholder="Describe the edit: hype montage, cold open on the best moment, meme sounds on the fails"
-            className="block w-full resize-none bg-transparent px-4 py-2 text-[15px] leading-6 outline-none placeholder:text-[var(--fg-4)] focus-visible:shadow-none"
+        <div className="uf-rise mx-auto mt-9 w-full max-w-[640px] [--i:2]">
+          <PromptShell
+            briefs={params.get("prompt") || project.prompt ? undefined : BRIEFS}
+            defaultText={params.get("prompt") ?? project.prompt}
+            defaultStyle={params.get("style") ?? project.promptStyle ?? "Auto"}
+            defaultAspect={params.get("aspect") ?? project.aspect}
+            working={running || recovering || project.analyzing}
+            onAttach={attach}
+            onTextChange={(t) => actions.setPrompt(t)}
+            onSubmit={start}
           />
+          <ClipStatus />
+          {recovering && <p role="status" className="mt-3 text-center text-[12px] text-text-3">Recovering your attached clip…</p>}
+          {draftError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[12px] text-danger"><span>{draftError}</span><Button size="sm" variant="ghost" onClick={() => { setSettledDraft(null); setDraftError(null); retryRecovery((n) => n + 1); }}>Retry recovery</Button></div>}
+          <Inspiration />
+        </div>
 
-          {/* Inspiration + generate */}
-          <div className="hair-t flex flex-col gap-2 p-2 sm:flex-row sm:items-center">
-            <div className="layer-2 flex min-w-0 flex-1 items-center gap-2 rounded-[8px] pl-2.5">
-              <Icon name="link" className="shrink-0 text-[var(--fg-3)]" />
-              <input
-                value={project.referenceUrl}
-                onChange={(e) => actions.setReferenceUrl(e.target.value)}
-                placeholder="Paste inspiration link"
-                className="t-body h-9 min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--fg-4)] focus-visible:shadow-none"
-              />
-              <button type="button" onClick={() => refInput.current?.click()} className="tint t-meta fg-3 mr-1 shrink-0 rounded-[6px] px-2 py-1 hover:text-[var(--fg-1)]">
-                or upload a reference
-              </button>
-              <input
-                ref={refInput}
-                type="file"
-                accept="video/*"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) actions.setReferenceFile(f);
-                }}
-              />
-            </div>
-            <Button variant="primary" size="lg" disabled={!ready} onClick={() => setModal(true)}>
-              <Icon name="sparkle" /> Generate 9 edits
-              <kbd className="t-mono ml-1 hidden rounded-[4px] bg-black/15 px-1 text-[10px] sm:inline">⌘↵</kbd>
-            </Button>
+        <section className="mt-20">
+          <div className="mb-4 flex items-baseline justify-between">
+            <SectionLabel>Recent edits</SectionLabel>
+            {recent.length > 0 && <span className="tabular font-mono text-[11px] text-text-3">{recent.length}</span>}
           </div>
-        </div>
-
-        {/* Preset chips */}
-        <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-          {PRESETS.map((p) => (
-            <Chip key={p} selected={presetSel === p} onClick={() => actions.setStyle(presetSel === p ? null : { kind: "preset", preset: p })}>
-              <span className="flex -space-x-0.5">
-                {STYLE_META[p].swatch.slice(0, 2).map((c) => (
-                  <span key={c} className="size-2.5 rounded-full shadow-[inset_0_0_0_0.5px_rgb(0_0_0/.2)]" style={{ background: c }} />
-                ))}
-              </span>
-              {STYLE_META[p].label}
-            </Chip>
-          ))}
-        </div>
-
-        <div className="mt-12 flex flex-col items-center gap-2">
-          <div className="t-meta fg-4 uppercase tracking-[0.04em]">Try</div>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {IDEAS.map((i) => (
-              <button key={i} onClick={() => actions.setPrompt(i)} className="tint hair hair-hover t-label fg-3 rounded-full px-3 py-1.5 font-normal hover:text-[var(--fg-1)]">
-                {i}
-              </button>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+            <DropTile onAttach={attach} />
+            {recent.map(([id, e], i) => (
+              <RecentCard key={id} id={id} entry={e} i={i} />
             ))}
+            {recent.length === 0 && <SampleTile disabled={running || recovering || !!draftError} onStart={() => { actions.clearUpload(); start({ prompt: "", file: null, style: "Auto", aspect: "9:16" }); }} />}
           </div>
-        </div>
+        </section>
       </main>
-
-      <StyleModal
-        open={modal}
-        onClose={() => setModal(false)}
-        onPick={start}
-        initial={project.style ?? (project.referenceUrl && !project.referenceUrl.startsWith("upload:") ? { kind: "link", url: project.referenceUrl } : null)}
-        referenceUrl={project.referenceUrl}
-      />
     </div>
   );
+}
+
+/** Upload / analysis status under the shell. */
+function ClipStatus() {
+  const p = useStore((s) => s.project);
+  if (!p.fileName) return p.analyzeError ? <p role="alert" className="mt-3 text-center text-[12px] text-danger">{p.analyzeError}</p> : null;
+  return (
+    <div role="status" className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[12px] text-text-3">
+      <span className="max-w-[220px] truncate text-text-2">{p.fileName}</span>
+      <span className="text-text-4">·</span>
+      {p.analyzeError ? (
+        <span className="flex items-center gap-2 text-danger">
+          {p.analyzeError}
+          {p.videoId && <button className="text-text-1 underline-offset-2 hover:underline" onClick={() => void actions.retryAnalyze()}>
+            Retry
+          </button>}
+        </span>
+      ) : p.analyzing || !p.analysis ? (
+        <Shimmer>Transcribing, finding scenes and beats…</Shimmer>
+      ) : (
+        <span className="tabular font-mono">
+          {p.analysis.durationSec.toFixed(1)}s · {p.analysis.words.length} words · {p.analysis.scenes.length} scenes
+        </span>
+      )}
+      <button aria-label="Remove clip" onClick={() => actions.clearUpload()} className="grid size-5 place-items-center rounded-full text-text-3 hover:text-text-1">
+        <IconX size={12} />
+      </button>
+    </div>
+  );
+}
+
+function Inspiration() {
+  const p = useStore((s) => s.project);
+  const input = useRef<HTMLInputElement>(null);
+  const file = p.referenceUrl.startsWith("upload:");
+  return (
+    <details className="mt-4 rounded-[14px] bg-surface-1 px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--hairline)]" open={p.referenceUrl || p.referenceNotice ? true : undefined}>
+      <summary className="cursor-pointer text-[12px] text-text-2">Copy an inspiration video <span className="text-text-4">· optional</span></summary>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {file ? <span className="min-w-0 flex-1 truncate text-[12px] text-text-1">{p.referenceUrl.slice(7)}</span> : <input type="url" aria-label="Inspiration video link" placeholder="Paste a video link…" value={p.referenceUrl} onChange={(e) => actions.setReferenceUrl(e.target.value)} className="h-9 min-w-[160px] flex-1 rounded-[10px] bg-surface-2 px-3 text-[13px] outline-none placeholder:text-text-4" />}
+        <Button size="sm" variant="secondary" onClick={() => input.current?.click()}><IconUpload size={13} /> Attach video</Button>
+        {p.referenceUrl && <Button size="icon-sm" variant="ghost" aria-label="Remove inspiration" onClick={() => actions.setReferenceFile(null)}><IconX size={13} /></Button>}
+        <input ref={input} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) actions.setReferenceFile(f); e.target.value = ""; }} />
+      </div>
+      {p.referenceNotice && <p role="status" className="mt-2 text-[12px] text-text-3">{p.referenceNotice}</p>}
+      <p className="mt-2 text-[11px] text-text-3">Use a link, or attach the video if the link cannot be opened.</p>
+    </details>
+  );
+}
+
+/** 9:16 drop zone tile (also a file picker). */
+function DropTile({ onAttach }: { onAttach: (file: File) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [drag, setDrag] = useState(false);
+  const fileName = useStore((s) => s.project.fileName);
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDrag(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f?.type.startsWith("video/")) onAttach(f);
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => input.current?.click()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDrag(true);
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={onDrop}
+      className={`group flex aspect-[9/16] flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed text-center transition-colors ${
+        drag ? "border-text-2 bg-surface-2" : "border-[var(--hairline-strong)] bg-surface-1/40 hover:bg-surface-1"
+      }`}
+    >
+      <span className="grid size-9 place-items-center rounded-full bg-surface-2 text-text-2 shadow-[inset_0_0_0_1px_var(--hairline)] group-hover:text-text-1">
+        <IconUpload />
+      </span>
+      <span className="text-[13px] font-medium text-text-1">{fileName ? "Replace clip" : "Drop a clip"}</span>
+      <span className="px-4 text-[11px] leading-[14px] text-text-3">Vertical or wide, up to 3 min</span>
+      <input
+        ref={input}
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onAttach(f);
+          e.target.value = "";
+        }}
+      />
+    </button>
+  );
+}
+
+function RecentCard({ id, entry, i }: { id: string; entry: PlanEntry; i: number }) {
+  const p = entry.base;
+  const frames = useStore((s) => s.analyses[p.source.videoId]?.frames ?? (s.project.analysis?.videoId === p.source.videoId ? s.project.analysis.frames : undefined));
+  const poster = posterFor(p.clips[0]?.srcStart ?? 0, frames ?? sampleAnalysis.frames);
+  return (
+    <Link href={`/app/edit/${id}`} className="uf-rise block rounded-[14px]" style={{ ["--i" as string]: i + 1 }}>
+      <VideoCard src={p.source.src} poster={poster} title={entry.name} meta={`${p.durationSec.toFixed(1)}s`} play="hover" />
+    </Link>
+  );
+}
+
+function SampleTile({ onStart, disabled }: { onStart: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" disabled={disabled} onClick={onStart} className="group relative block text-left disabled:opacity-40">
+      <VideoCard src="/demo/sample.mp4" poster="/demo/frame-12.jpg" title="Try the sample clip" meta="20s" play="hover" />
+      <span className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+        <IconArrowRight size={14} />
+      </span>
+    </button>
+  );
+}
+
+export function posterFor(t: number, frames: { t: number; url: string }[]) {
+  return frames.reduce((b, f) => (Math.abs(f.t - t) < Math.abs(b.t - t) ? f : b), frames[0])?.url;
 }

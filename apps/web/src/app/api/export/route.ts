@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   const origin = new URL(req.url).origin;
   const fileName = `${planId}-${randomUUID()}.mp4`;
-  return sse(async (send) => {
+  return sse(async (send, signal) => {
     const { renderPlan } = await import("@unfold/video/render");
     const outDir = path.join(MEDIA_DIR, "exports");
     await mkdir(outDir, { recursive: true });
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
       publicDir: PUBLIC_DIR,
       entryPoint: path.join(REPO_ROOT, "packages/video/src/entry.ts"),
       assetBase: origin, // /media/... and /assets/... are fetched from this server
+      signal,
       onProgress: (p) => {
         if (p - last >= 0.02 || p === 1) {
           last = p;

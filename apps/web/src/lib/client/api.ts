@@ -7,7 +7,7 @@
  *   POST /api/reference  {url} | multipart {file}                          → { styleId, profile, cutStats, title, stats }
  *   POST /api/variants   {videoId, prompt, styleId?, aspect?, count}       → SSE start | variant | variant-error | summary | done
  *   POST /api/remix      {planId, message}                                 → SSE delta | plan | done
- *   POST /api/export     {planId}                                          → SSE progress | ready | done
+ *   POST /api/export     {planId, resolution?, burnCaptions?}              → SSE progress | ready | done
  *   GET  /api/plans/:id                                                    → { editPlan, agentPlan, videoId }
  *   GET  /assets/{music,sfx}/manifest.json                                 → MusicTrack[] / SfxItem[]
  */
@@ -62,22 +62,22 @@ async function* sse<T extends { type: string }>(res: Response): AsyncGenerator<T
   }
 }
 
-export async function uploadVideo(file: File): Promise<{ videoId: string }> {
+export async function uploadVideo(file: File, signal?: AbortSignal): Promise<{ videoId: string }> {
   if (MOCK) {
     await sleep(250);
     return { videoId: mockRegisterUpload(file) };
   }
   const fd = new FormData();
   fd.append("file", file);
-  return json(await fetch("/api/upload", { method: "POST", body: fd }));
+  return json(await fetch("/api/upload", { method: "POST", body: fd, signal }));
 }
 
-export async function analyze(videoId: string): Promise<MediaAnalysis> {
+export async function analyze(videoId: string, signal?: AbortSignal): Promise<MediaAnalysis> {
   if (MOCK) {
     await sleep(150);
     return mockAnalysis(videoId);
   }
-  return (await json<{ analysis: MediaAnalysis }>(await post("/api/analyze", { videoId }))).analysis;
+  return (await json<{ analysis: MediaAnalysis }>(await post("/api/analyze", { videoId }, signal))).analysis;
 }
 
 export async function getLibrary(): Promise<Library> {
@@ -94,7 +94,7 @@ export async function getLibrary(): Promise<Library> {
 }
 
 /** Copy the style of an inspiration video (fetched from a link, or an uploaded file as fallback). */
-export async function reference(input: { url: string } | { file: File }): Promise<ReferenceResult> {
+export async function reference(input: { url: string } | { file: File }, signal?: AbortSignal): Promise<ReferenceResult> {
   if (MOCK) {
     await sleep(900);
     return { styleId: "mock-style", profile: null as never, title: "url" in input ? input.url : input.file.name };
@@ -102,9 +102,9 @@ export async function reference(input: { url: string } | { file: File }): Promis
   if ("file" in input) {
     const fd = new FormData();
     fd.append("file", input.file);
-    return json(await fetch("/api/reference", { method: "POST", body: fd }));
+    return json(await fetch("/api/reference", { method: "POST", body: fd, signal }));
   }
-  return json(await post("/api/reference", { url: input.url }));
+  return json(await post("/api/reference", { url: input.url }, signal));
 }
 
 export async function* generateVariants(req: GenerateRequest, signal?: AbortSignal): AsyncGenerator<VariantsEvent> {
@@ -140,6 +140,7 @@ export async function* remix(args: { planId: string; message: string }, signal?:
     return;
   }
   await sleep(380 + Math.random() * 250);
+  signal?.throwIfAborted();
   const { editPlan, reply } = mockRemix(args.planId, args.message);
   yield { type: "plan", editPlan, stats: fakeStats(380 + Math.round(Math.random() * 300)), reply };
 }
@@ -149,14 +150,22 @@ export async function getPlan(id: string): Promise<{ editPlan: EditPlan; videoId
   return json(await fetch(`/api/plans/${encodeURIComponent(id)}`));
 }
 
-/** Server render of the stored plan (manual client edits are not included server-side yet). */
-export async function* exportVideo(planId: string, signal?: AbortSignal): AsyncGenerator<ExportEvent> {
+/** Render the same edit plan that is shown in the preview. */
+export type ExportOptions = { editPlan?: EditPlan; resolution?: "720p" | "1080p"; burnCaptions?: boolean };
+export async function* exportVideo(planId: string, opts: ExportOptions = {}, signal?: AbortSignal): AsyncGenerator<ExportEvent> {
   if (!MOCK) {
-    yield* sse<ExportEvent>(await post("/api/export", { planId }, signal));
+    let ready = false;
+    for await (const event of sse<ExportEvent>(await post("/api/export", { planId, ...opts }, signal))) {
+      if (event.type === "ready") ready = true;
+      if (event.type === "error") throw new Error(event.message);
+      yield event;
+    }
+    if (!ready) throw new Error("The render connection closed before the video was ready. Try again.");
     return;
   }
   for (let p = 0.1; p < 1; p += 0.15) {
     await sleep(220);
+    signal?.throwIfAborted();
     yield { type: "progress", progress: p };
   }
   yield { type: "ready", url: mockPlanById(planId).source.src };

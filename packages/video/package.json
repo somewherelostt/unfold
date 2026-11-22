@@ -28,6 +28,8 @@
   "scripts": {
     "studio": "remotion studio src/entry.ts --port 3004 --public-dir ../../apps/web/public",
     "typecheck": "tsc --noEmit",
+    "test:captions": "node --import tsx --test scripts/captions.test.ts",
+    "test:render": "node --import tsx --experimental-test-module-mocks --test scripts/render.test.ts",
     "render:sample": "tsx scripts/render-sample.ts"
   }
 }

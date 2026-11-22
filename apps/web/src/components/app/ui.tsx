@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -20,83 +19,6 @@ export function Logo({ href = "/app", wordmark = true }: { href?: string; wordma
       {wordmark && <span className="font-display text-[19px] font-extrabold tracking-[-0.03em]">unfold</span>}
     </Link>
   );
-}
-
-/** ⚡ 0.8s · 1,100 tok/s — the agent's speed, always mono + tabular. */
-export function SpeedBadge({ ms, tps, label = "planned in", className }: { ms: number; tps: number; label?: string; className?: string }) {
-  return (
-    <span
-      className={cx(
-        "t-mono inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-full bg-[var(--violet-12)] px-2.5 text-[11px] leading-4 text-violet",
-        className,
-      )}
-    >
-      <span aria-hidden>⚡</span>
-      {label ? `${label} ` : ""}
-      {(ms / 1000).toFixed(1)}s · {fmtNum(tps)} tok/s
-    </span>
-  );
-}
-
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "md" | "lg" | "icon" };
-export function Button({ variant = "secondary", size = "md", className, ...p }: BtnProps) {
-  return (
-    <button
-      {...p}
-      className={cx(
-        "tint inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] text-[13px] font-medium leading-5 transition-opacity duration-[var(--dur-1)] disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0",
-        size === "sm" && "h-8 px-2.5",
-        size === "md" && "h-9 px-3",
-        size === "lg" && "h-10 px-4",
-        size === "icon" && "size-8",
-        variant === "primary" && "bg-flare text-flare-ink",
-        variant === "secondary" && "hair hair-hover layer-1 fg-1",
-        variant === "ghost" && "fg-2 hover:text-[var(--fg-1)]",
-        className,
-      )}
-    />
-  );
-}
-
-export function Chip({ selected, children, className, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      {...p}
-      className={cx(
-        "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-[12px] font-medium leading-4",
-        selected ? "bg-[var(--flare-10)] text-flare shadow-[inset_0_0_0_0.5px_var(--flare-30)]" : "tint layer-2 fg-2 hover:text-[var(--fg-1)]",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={cx("relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--dur-1)]", checked ? "bg-flare" : "bg-[var(--hair-strong)]")}
-    >
-      <span
-        className={cx(
-          "absolute left-0 top-[2px] size-[14px] rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/.2)] transition-transform duration-[var(--dur-2)] [transition-timing-function:var(--ease-spring)]",
-          checked ? "translate-x-[16px]" : "translate-x-[2px]",
-        )}
-      />
-    </button>
-  );
-}
-
-export function MicroLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("t-meta fg-3 uppercase tracking-[0.04em]", className)}>{children}</div>;
 }
 
 const SFX_EMOJI: [RegExp, string][] = [

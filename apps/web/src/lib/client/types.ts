@@ -1,4 +1,4 @@
-import type { AgentPlan, Aspect, CaptionPreset, EditPlan, StylePreset, StyleProfile } from "@unfold/core";
+import type { AgentPlan, Aspect, CaptionPreset, EditPlan, StylePreset, StyleProfile, TransitionType } from "@unfold/core";
 
 /** Per-call agent stats from the API (packages/agent StreamStats). Speed shown = genMs + tps. */
 export type ApiStats = {
@@ -54,19 +54,39 @@ export type ReferenceResult = {
   stats?: ApiStats;
 };
 
-/** Manual, client-side edits layered on top of the agent's plan (editor panel). */
+/** Manual, client-side edits layered on top of the agent's plan (editor panels). */
 export type Overrides = {
   captions?: boolean;
   captionPreset?: CaptionPreset;
+  captionPosition?: "upper" | "center" | "lower";
+  uppercase?: boolean;
+  highlightColor?: string;
+  wordsPerLine?: number;
+  hookText?: string | null;
   music?: boolean;
   trackId?: string;
   volume?: number;
   sfx?: boolean;
+  sfxRemoved?: number[]; // indices in the agent's sound-effect list
+  sfxAdded?: { at: number; sfxId: string; url: string; name: string; volume: number }[];
   transitions?: boolean;
+  transitionTypes?: Record<number, TransitionType>; // by cut index
   zooms?: boolean;
   aspect?: Aspect;
 };
 
 export type ChatMsg =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "agent"; text: string; stats?: ApiStats; pending?: boolean; draft?: string };
+  | {
+      id: string;
+      role: "agent";
+      text: string;
+      stats?: ApiStats;
+      pending?: boolean;
+      draft?: string;
+      startedAt?: number;
+      workedMs?: number;
+      steps?: string[];
+      /** What the remix changed; `revertTo` restores the plan from before it. */
+      change?: { items: string[]; state: "open" | "kept" | "reverted"; revertTo?: { base: EditPlan; overrides: Overrides; serverId: string } };
+    };

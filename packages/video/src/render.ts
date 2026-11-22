@@ -17,6 +17,8 @@ export type RenderPlanOptions = {
   onProgress?: (progress: number) => void;
   concurrency?: number | null;
   crf?: number;
+  /** Stop an in-flight export when its request is cancelled. */
+  signal?: AbortSignal;
 };
 
 const COMPOSITION_ID = "UnfoldPlan";
@@ -56,21 +58,36 @@ export function getServeUrl(opts: Pick<RenderPlanOptions, "publicDir" | "entryPo
 
 /** Render an EditPlan to an H.264 MP4 at `outPath`. Resolves to `outPath`. */
 export async function renderPlan(plan: EditPlan, outPath: string, opts: RenderPlanOptions): Promise<string> {
-  const { renderMedia, selectComposition } = await import("@remotion/renderer");
-  const serveUrl = await getServeUrl(opts);
-  const inputProps = { plan, assetBase: opts.assetBase };
-  const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps });
-  await renderMedia({
-    composition,
-    serveUrl,
-    codec: "h264",
-    outputLocation: outPath,
-    inputProps,
-    crf: opts.crf ?? 20,
-    concurrency: opts.concurrency ?? null,
-    imageFormat: "jpeg",
-    jpegQuality: 90,
-    onProgress: opts.onProgress ? ({ progress }) => opts.onProgress!(progress) : undefined,
-  });
-  return outPath;
+  opts.signal?.throwIfAborted();
+  const { renderMedia, selectComposition, makeCancelSignal } = await import("@remotion/renderer");
+  opts.signal?.throwIfAborted();
+  const { cancelSignal, cancel } = makeCancelSignal();
+  opts.signal?.addEventListener("abort", cancel, { once: true });
+  try {
+    const serveUrl = await getServeUrl(opts);
+    opts.signal?.throwIfAborted();
+    const inputProps = { plan, assetBase: opts.assetBase };
+    const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps });
+    opts.signal?.throwIfAborted();
+    await renderMedia({
+      composition,
+      serveUrl,
+      codec: "h264",
+      outputLocation: outPath,
+      inputProps,
+      crf: opts.crf ?? 20,
+      concurrency: opts.concurrency ?? null,
+      imageFormat: "jpeg",
+      jpegQuality: 90,
+      cancelSignal,
+      onProgress: opts.onProgress ? ({ progress }) => opts.onProgress!(progress) : undefined,
+    });
+    opts.signal?.throwIfAborted();
+    return outPath;
+  } catch (error) {
+    opts.signal?.throwIfAborted();
+    throw error;
+  } finally {
+    opts.signal?.removeEventListener("abort", cancel);
+  }
 }

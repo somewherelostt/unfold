@@ -28,6 +28,16 @@ export function Segmented<T extends string>({
           type="button"
           role="radio"
           aria-checked={o.value === value}
+          tabIndex={o.value === value ? 0 : -1}
+          onKeyDown={(event) => {
+            const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+            if (!direction && event.key !== "Home" && event.key !== "End") return;
+            event.preventDefault();
+            const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (i + direction + options.length) % options.length;
+            onChange(options[next].value);
+            const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+            buttons?.[next]?.focus();
+          }}
           onClick={() => onChange(o.value)}
           className={`relative z-10 cursor-pointer truncate px-2 text-[12px] font-medium transition-colors ${mono ? "tabular font-mono" : ""} ${o.value === value ? "text-text-1" : "text-text-3 hover:text-text-2"}`}
         >

@@ -29,7 +29,6 @@ export const UnfoldComposition: React.FC<UnfoldCompositionProps> = ({ plan, asse
       style={{
         backgroundColor: "#000",
         overflow: "hidden",
-        translate: "25.2px 0px"
       }}
     >
       <VideoLayer plan={plan} fx={fx} filterId={filterId} assetBase={assetBase} />

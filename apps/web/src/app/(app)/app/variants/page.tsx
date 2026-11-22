@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { VariantsScreen } from "@/components/app/variants/VariantsScreen";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "9 edits · Unfold" };
-
+/** The grid of versions is now a drawer in the editor; old links land on the home screen. */
 export default function VariantsPage() {
-  return <VariantsScreen />;
+  redirect("/app");
 }
