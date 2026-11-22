@@ -207,7 +207,8 @@ export async function reviewRenderedPlan(plan: EditPlan, opts: RenderReviewOptio
     if (report.metrics.audio.rmsDbfs === null && sourceHasAudio) report.warnings.push("The exported audio is silent despite an audio-bearing source; inspect whether this is intended.");
     if (plan.broll?.length && source && sourceHasAudio && plan.clips.length <= 64 && !base.errors.length) {
       const labels = plan.clips.map((_, i) => `[s${i}]`).join("");
-      const graph = [`[0:a]asplit=${plan.clips.length}${labels}`, ...plan.clips.map((c, i) => `[s${i}]atrim=start=${c.srcStart}:end=${c.srcEnd},asetpts=PTS-STARTPTS,atempo=${c.speed}[c${i}]`), `${plan.clips.map((_, i) => `[c${i}]`).join("")}concat=n=${plan.clips.length}:v=0:a=1[voice]`].join(";");
+      // Even atempo=1 can alter phase in speech; an unchanged-speed reference must retain the source waveform.
+      const graph = [`[0:a]asplit=${plan.clips.length}${labels}`, ...plan.clips.map((c, i) => `[s${i}]atrim=start=${c.srcStart}:end=${c.srcEnd},asetpts=PTS-STARTPTS${c.speed === 1 ? "" : `,atempo=${c.speed}`}[c${i}]`), `${plan.clips.map((_, i) => `[c${i}]`).join("")}concat=n=${plan.clips.length}:v=0:a=1[voice]`].join(";");
       const reference = await command(opts.ffmpegExecutable ?? "ffmpeg", ["-v", "error", "-i", source, "-filter_complex", graph, "-map", "[voice]", "-t", String(seconds), "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"], opts.signal);
       const mixed = await command(opts.ffmpegExecutable ?? "ffmpeg", ["-v", "error", "-i", opts.outputPath, "-t", String(seconds), "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"], opts.signal);
       const windows = (plan.broll ?? []).flatMap((b) => [{ time: Math.max(0, b.start - 0.3), label: `Before ${b.id}` }, { time: (b.start + b.end) / 2 - 0.125, label: `During ${b.id}` }, { time: b.end + 0.03, label: `After ${b.id}` }]).filter((w) => w.time + 0.25 <= seconds).slice(0, 36);

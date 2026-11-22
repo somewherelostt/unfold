@@ -87,6 +87,28 @@ test("synthetic detector calibration measures actual black/frozen/silent media a
   assert.ok(lost.errors.some((error) => error.includes("primary source audio disappeared")));
 });
 
+const localSpeech = fileURLToPath(new URL("../../../data/media/test-speech/source.mp4", import.meta.url));
+test("normal-speed 44.1 kHz voice comparison preserves the source waveform", { timeout: 30000, skip: !existsSync(localSpeech) && "Local public-domain speech fixture is unavailable" }, async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), "unfold-voice-review-test-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const output = path.join(root, "voice.mp4");
+  // This is a measurement calibration, not an editorial composition render.
+  execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=96x96:r=30:d=2.58", "-i", localSpeech,
+    "-filter_complex", "[1:a]atrim=start=6.3:end=8.88,asetpts=PTS-STARTPTS[voice]", "-map", "0:v", "-map", "[voice]", "-t", "2.58", "-ar", "48000", "-c:v", "libx264", "-c:a", "aac", output]);
+  const plan = { ...base, id: "voice-measurement-calibration", width: 96, height: 96, fps: 30, durationSec: 2.58,
+    source: { videoId: "voice", src: "/voice.mp4", width: 1280, height: 720 },
+    clips: [{ id: "c0", start: 0, end: 2.58, srcStart: 6.3, srcEnd: 8.88, speed: 1 }],
+    captions: { ...base.captions, enabled: false, chunks: [] }, hookText: null, music: null, sfx: [], zooms: [], transitions: [], overlays: [],
+    supporting: [{ videoId: "support", name: "Measurement calibration", description: "", src: "/support.mp4", width: 96, height: 96, durationSec: 2.58, frames: [{ t: 0, url: "/frame.jpg" }] }],
+    broll: [{ id: "b0", assetId: "support", srcStart: 0, srcEnd: 0.6, segmentIndex: 0, atSrcTime: 7.5, evidenceFrameTime: 0, purpose: "context" as const, reason: "Audio measurement calibration only.", clipId: "c0", start: 1.2, end: 1.8 }],
+  };
+  const report = await reviewRenderedPlan(plan, { outputPath: output, reviewDir: path.join(root, "review"), publicDir: root, resolveAsset: (src) => src === plan.source.src ? localSpeech : output });
+  assert.equal(report.errors.length, 0);
+  assert.ok(!report.warnings.some((warning) => warning.includes("waveform differs")));
+  assert.equal(report.metrics.narration?.length, 3);
+  for (const window of report.metrics.narration!) { assert.ok(window.correlation !== null && window.correlation > 0.99); assert.equal(window.lagMs, 0); }
+});
+
 test("a pre-aborted review does not start inspection", async () => {
   const controller = new AbortController(); controller.abort();
   await assert.rejects(reviewRenderedPlan(base, { outputPath: "/private/tmp/unused.mp4", reviewDir: "/private/tmp/unused-review", publicDir: "/private/tmp", signal: controller.signal }), { name: "AbortError" });

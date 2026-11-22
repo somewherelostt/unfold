@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type DragEvent, type FormEvent } fr
 import { useRouter } from "next/navigation";
 import { Chip } from "./Chip";
 import "./ui.css";
-import { IconArrowUp, IconChevronDown, IconPlus, IconSparkle, IconX } from "./icons";
+import { IconArrowUp, IconChevronDown, IconPlus, IconX } from "./icons";
 import { savePromptDraft } from "./prompt-draft";
 
 export type PromptPreset = { label: string; prompt: string };
@@ -26,7 +26,8 @@ export type PromptSubmit = { prompt: string; file: File | null; style: string; a
 
 /**
  * The prompt shell: an 18px-radius shell with 6px padding around a 12px-radius field. Bottom row: attach,
- * style and aspect pills, improve-prompt, round white send. The whole shell is a drop target.
+ * style and aspect pills, round white send. Direction changes come only from explicit preset choices.
+ * The whole shell is a drop target.
  * `briefs` rotate as a typed placeholder. Without `onSubmit` it opens the app with the prompt.
  */
 export function PromptShell({
@@ -187,15 +188,6 @@ export function PromptShell({
               </Pill>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                aria-label="Improve prompt"
-                title="Improve prompt"
-                onClick={() => setText((t) => (t.trim() ? `${t.trim()}. Open on the hook, captions that pop, cuts on the beat.` : DEFAULT_PRESETS[0].prompt))}
-                className="grid size-8 cursor-pointer place-items-center rounded-full text-text-3 transition-colors hover:text-text-1"
-              >
-                <IconSparkle size={15} />
-              </button>
               <button
                 type="submit"
                 aria-label="Unfold"
