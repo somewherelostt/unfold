@@ -2,53 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": [
     "sin1"
-  ],
-  "daemons": {
-    "media-worker": {
-      "root": "../..",
-      "entrypoint": "infra/cloud/Dockerfile.media",
-      "instances": {
-        "sin1": 0
-      },
-      "resources": {
-        "requests": {
-          "memory": "2Gi"
-        }
-      },
-      "terminationGracePeriodSeconds": 360,
-      "livenessProbe": {
-        "httpGet": {
-          "port": 8080,
-          "path": "/health"
-        },
-        "initialDelaySeconds": 60,
-        "periodSeconds": 15,
-        "timeoutSeconds": 5,
-        "failureThreshold": 3
-      }
-    },
-    "publishing-worker": {
-      "root": "../..",
-      "entrypoint": "infra/cloud/Dockerfile.publishing",
-      "instances": {
-        "sin1": 0
-      },
-      "resources": {
-        "requests": {
-          "memory": "1Gi"
-        }
-      },
-      "terminationGracePeriodSeconds": 360,
-      "livenessProbe": {
-        "httpGet": {
-          "port": 8080,
-          "path": "/health"
-        },
-        "initialDelaySeconds": 20,
-        "periodSeconds": 15,
-        "timeoutSeconds": 5,
-        "failureThreshold": 3
-      }
-    }
-  }
+  ]
 }
